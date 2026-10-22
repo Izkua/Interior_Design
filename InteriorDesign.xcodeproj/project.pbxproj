@@ -1,0 +1,610 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01A08CEC0FB3DD615951F9CC /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293FF937EBD74B6686CDAAB0 /* Settings.swift */; };
+		0558C2035AD8900DB4074C26 /* RoomListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408A2774943F3ED13ADCB4BF /* RoomListView.swift */; };
+		059B6DD9D2D9F4400E399BD2 /* ProfileButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBEA0E8AA4A51A4C00D7854 /* ProfileButton.swift */; };
+		0748092E11089E36DDD089DA /* LengthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87865DBF11214D6E12C265D4 /* LengthTests.swift */; };
+		1527A3B13E8CAFE5A8E027DB /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C2FB16A4B137FA00EB85840 /* Room.swift */; };
+		1DC67EDA7E526CF0437E0BA3 /* Units.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD835EC463E9043DD1843088 /* Units.swift */; };
+		325275B581C17A7B798DD70F /* RoomCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1921CD474D7FEEDBB904DE3B /* RoomCanvasView.swift */; };
+		3DAED450CB33274F07CA3A84 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 931929CDE4E0F9A8C8C7A9F7 /* Item.swift */; };
+		466C6AF5DC5DD0CE7BB2D035 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B71704FC92D14F24CD40B /* Preferences.swift */; };
+		5529C179487ACFE2C29EEE11 /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731D2C021CDF928058DF1DAD /* CatalogView.swift */; };
+		6938745EFD854CB2C274C206 /* LengthField.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02F215C29A0864F42E4B4A1 /* LengthField.swift */; };
+		8F7F40E4ABAEF05846A22866 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE9CD3CDFB7E2C5235C648C /* RootView.swift */; };
+		999623945F0CCF6674A6311B /* CurrentItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B117F6928C4FE22AF827292 /* CurrentItemsView.swift */; };
+		A17679F3C92F52D20F7E43AD /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11052971811D302AA39AB9E4 /* SeedData.swift */; };
+		A4329FD659B40739A6127027 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C7B1508A6405070EFC2A39 /* Theme.swift */; };
+		A64BB0C3DD14D30E62C0AE15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B32E6439A0B7B37AA1954F1 /* Assets.xcassets */; };
+		B0C30CCB877E2152BB13BBF1 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22471B3F122651C12316E555 /* Product.swift */; };
+		B340C1C5212BCBD01944910D /* RoomLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEC93BB1B68A13DA9CCC329 /* RoomLayout.swift */; };
+		B355F52C42F6F8E6633DB495 /* GeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BA9941B6464C6AEAE4435A /* GeometryTests.swift */; };
+		C07C2F6369770B9E4222A310 /* ItemCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D745688DA2C311BE2B7AD766 /* ItemCard.swift */; };
+		C61148B53DC487CB5D8F0CBB /* RoomBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */; };
+		CBF768B93827EECEB2C821F0 /* ProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6F10A41371D240FCE7CD3B /* ProfileSheet.swift */; };
+		D2C9F1C97823238661E26DFA /* PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABCA8854F01D3BF2038FD68 /* PersistenceTests.swift */; };
+		DACA740DB54A5D797014BF7A /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F398144A531CC893CCBC580 /* HomeView.swift */; };
+		DC6B0EC14F649060696F8686 /* InteriorDesignApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93270E5F8B8995B8D34C0008 /* InteriorDesignApp.swift */; };
+		E683DD35ED95B8B79B4DDBD6 /* RoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB69EAF85D05B057981F430 /* RoomTests.swift */; };
+		FCDB508ADDACB6E5B666A71B /* PlanGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F76AE3FA4056636F0C37E01 /* PlanGeometry.swift */; };
+		FDC962EA672E7A96D607CCCF /* RecommendedLayoutsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6127D54EF5D63F97BA29DDD4 /* RecommendedLayoutsView.swift */; };
+		FF831553C769310672571612 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61705A4A628E04D4B1CA8540 /* Components.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		27736388950B1D4DC61318C9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D2BF67946FBFB6DD4CEA9E64 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 37DB9C41D1FC87E17B609022;
+			remoteInfo = InteriorDesign;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		02BA9941B6464C6AEAE4435A /* GeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryTests.swift; sourceTree = "<group>"; };
+		0B32E6439A0B7B37AA1954F1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		11052971811D302AA39AB9E4 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
+		1921CD474D7FEEDBB904DE3B /* RoomCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCanvasView.swift; sourceTree = "<group>"; };
+		1F398144A531CC893CCBC580 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		22471B3F122651C12316E555 /* Product.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
+		293FF937EBD74B6686CDAAB0 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+		2ABCA8854F01D3BF2038FD68 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
+		2B117F6928C4FE22AF827292 /* CurrentItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentItemsView.swift; sourceTree = "<group>"; };
+		2F6F10A41371D240FCE7CD3B /* ProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSheet.swift; sourceTree = "<group>"; };
+		408A2774943F3ED13ADCB4BF /* RoomListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomListView.swift; sourceTree = "<group>"; };
+		4EE83705FF638048D9584F71 /* InteriorDesign.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InteriorDesign.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F76AE3FA4056636F0C37E01 /* PlanGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGeometry.swift; sourceTree = "<group>"; };
+		6127D54EF5D63F97BA29DDD4 /* RecommendedLayoutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedLayoutsView.swift; sourceTree = "<group>"; };
+		61705A4A628E04D4B1CA8540 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		6440D384C0A75976CDD2B027 /* InteriorDesignTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = InteriorDesignTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		731D2C021CDF928058DF1DAD /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
+		76C7B1508A6405070EFC2A39 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		87865DBF11214D6E12C265D4 /* LengthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LengthTests.swift; sourceTree = "<group>"; };
+		8C2FB16A4B137FA00EB85840 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
+		931929CDE4E0F9A8C8C7A9F7 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
+		93270E5F8B8995B8D34C0008 /* InteriorDesignApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteriorDesignApp.swift; sourceTree = "<group>"; };
+		9A1B71704FC92D14F24CD40B /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		ABE9CD3CDFB7E2C5235C648C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomBuilderView.swift; sourceTree = "<group>"; };
+		CCEC93BB1B68A13DA9CCC329 /* RoomLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLayout.swift; sourceTree = "<group>"; };
+		CFB69EAF85D05B057981F430 /* RoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomTests.swift; sourceTree = "<group>"; };
+		D745688DA2C311BE2B7AD766 /* ItemCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemCard.swift; sourceTree = "<group>"; };
+		DD835EC463E9043DD1843088 /* Units.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Units.swift; sourceTree = "<group>"; };
+		DDBEA0E8AA4A51A4C00D7854 /* ProfileButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileButton.swift; sourceTree = "<group>"; };
+		F02F215C29A0864F42E4B4A1 /* LengthField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LengthField.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0405A094E801F566F5309601 /* InteriorDesignTests */ = {
+			isa = PBXGroup;
+			children = (
+				02BA9941B6464C6AEAE4435A /* GeometryTests.swift */,
+				87865DBF11214D6E12C265D4 /* LengthTests.swift */,
+				2ABCA8854F01D3BF2038FD68 /* PersistenceTests.swift */,
+				CFB69EAF85D05B057981F430 /* RoomTests.swift */,
+			);
+			path = InteriorDesignTests;
+			sourceTree = "<group>";
+		};
+		2FD5403650E5D77036ABCAFB /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				931929CDE4E0F9A8C8C7A9F7 /* Item.swift */,
+				9A1B71704FC92D14F24CD40B /* Preferences.swift */,
+				22471B3F122651C12316E555 /* Product.swift */,
+				8C2FB16A4B137FA00EB85840 /* Room.swift */,
+				CCEC93BB1B68A13DA9CCC329 /* RoomLayout.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		543B1F537B1C01ABE7C5FC87 /* Layouts */ = {
+			isa = PBXGroup;
+			children = (
+				6127D54EF5D63F97BA29DDD4 /* RecommendedLayoutsView.swift */,
+			);
+			path = Layouts;
+			sourceTree = "<group>";
+		};
+		54F26958E31DB1683A40948F /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				731D2C021CDF928058DF1DAD /* CatalogView.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		6057A7ED10208D04D65CAD5F /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				1F398144A531CC893CCBC580 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		82267F742FB135735D2F2E36 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				DDBEA0E8AA4A51A4C00D7854 /* ProfileButton.swift */,
+				2F6F10A41371D240FCE7CD3B /* ProfileSheet.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		895370F533BB90EFA9B48264 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				61705A4A628E04D4B1CA8540 /* Components.swift */,
+				76C7B1508A6405070EFC2A39 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		89D248BAD456A16739824FDE /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				F02F215C29A0864F42E4B4A1 /* LengthField.swift */,
+				5F76AE3FA4056636F0C37E01 /* PlanGeometry.swift */,
+				11052971811D302AA39AB9E4 /* SeedData.swift */,
+				293FF937EBD74B6686CDAAB0 /* Settings.swift */,
+				DD835EC463E9043DD1843088 /* Units.swift */,
+				895370F533BB90EFA9B48264 /* Design */,
+				2FD5403650E5D77036ABCAFB /* Models */,
+				82267F742FB135735D2F2E36 /* Profile */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		93382EF4DB074E000297A865 = {
+			isa = PBXGroup;
+			children = (
+				B1DE408447F9A75D4E7EEAFC /* InteriorDesign */,
+				0405A094E801F566F5309601 /* InteriorDesignTests */,
+				AD5CAFC263185E57E87C7AC9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		93EC13FE5DE071812102FEB3 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				93270E5F8B8995B8D34C0008 /* InteriorDesignApp.swift */,
+				ABE9CD3CDFB7E2C5235C648C /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		ABE01565B6ECE9267B046EBD /* Items */ = {
+			isa = PBXGroup;
+			children = (
+				2B117F6928C4FE22AF827292 /* CurrentItemsView.swift */,
+				D745688DA2C311BE2B7AD766 /* ItemCard.swift */,
+			);
+			path = Items;
+			sourceTree = "<group>";
+		};
+		AD5CAFC263185E57E87C7AC9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4EE83705FF638048D9584F71 /* InteriorDesign.app */,
+				6440D384C0A75976CDD2B027 /* InteriorDesignTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AD6E5A97F636626F6D7D0A37 /* Rooms */ = {
+			isa = PBXGroup;
+			children = (
+				BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */,
+				1921CD474D7FEEDBB904DE3B /* RoomCanvasView.swift */,
+				408A2774943F3ED13ADCB4BF /* RoomListView.swift */,
+			);
+			path = Rooms;
+			sourceTree = "<group>";
+		};
+		B1DE408447F9A75D4E7EEAFC /* InteriorDesign */ = {
+			isa = PBXGroup;
+			children = (
+				0B32E6439A0B7B37AA1954F1 /* Assets.xcassets */,
+				93EC13FE5DE071812102FEB3 /* App */,
+				54F26958E31DB1683A40948F /* Catalog */,
+				6057A7ED10208D04D65CAD5F /* Home */,
+				ABE01565B6ECE9267B046EBD /* Items */,
+				543B1F537B1C01ABE7C5FC87 /* Layouts */,
+				AD6E5A97F636626F6D7D0A37 /* Rooms */,
+				89D248BAD456A16739824FDE /* Shared */,
+			);
+			path = InteriorDesign;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		37DB9C41D1FC87E17B609022 /* InteriorDesign */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9D99BEAAA1996B7D7A84C44D /* Build configuration list for PBXNativeTarget "InteriorDesign" */;
+			buildPhases = (
+				729D76B0FD2C512A7FDC16AD /* Sources */,
+				AAD78C9455E78CF8772597DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InteriorDesign;
+			packageProductDependencies = (
+			);
+			productName = InteriorDesign;
+			productReference = 4EE83705FF638048D9584F71 /* InteriorDesign.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5D61DF34DD3BD61BB74B30A2 /* InteriorDesignTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 869F774486C149030E603E79 /* Build configuration list for PBXNativeTarget "InteriorDesignTests" */;
+			buildPhases = (
+				4FDAD1842C8349E0ED213D3D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9C328DBCA49B0FA94D75530D /* PBXTargetDependency */,
+			);
+			name = InteriorDesignTests;
+			packageProductDependencies = (
+			);
+			productName = InteriorDesignTests;
+			productReference = 6440D384C0A75976CDD2B027 /* InteriorDesignTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D2BF67946FBFB6DD4CEA9E64 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					37DB9C41D1FC87E17B609022 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BC44936290EDB22F7267DB20 /* Build configuration list for PBXProject "InteriorDesign" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 93382EF4DB074E000297A865;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AD5CAFC263185E57E87C7AC9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				37DB9C41D1FC87E17B609022 /* InteriorDesign */,
+				5D61DF34DD3BD61BB74B30A2 /* InteriorDesignTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AAD78C9455E78CF8772597DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A64BB0C3DD14D30E62C0AE15 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4FDAD1842C8349E0ED213D3D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B355F52C42F6F8E6633DB495 /* GeometryTests.swift in Sources */,
+				0748092E11089E36DDD089DA /* LengthTests.swift in Sources */,
+				D2C9F1C97823238661E26DFA /* PersistenceTests.swift in Sources */,
+				E683DD35ED95B8B79B4DDBD6 /* RoomTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		729D76B0FD2C512A7FDC16AD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5529C179487ACFE2C29EEE11 /* CatalogView.swift in Sources */,
+				FF831553C769310672571612 /* Components.swift in Sources */,
+				999623945F0CCF6674A6311B /* CurrentItemsView.swift in Sources */,
+				DACA740DB54A5D797014BF7A /* HomeView.swift in Sources */,
+				DC6B0EC14F649060696F8686 /* InteriorDesignApp.swift in Sources */,
+				3DAED450CB33274F07CA3A84 /* Item.swift in Sources */,
+				C07C2F6369770B9E4222A310 /* ItemCard.swift in Sources */,
+				6938745EFD854CB2C274C206 /* LengthField.swift in Sources */,
+				FCDB508ADDACB6E5B666A71B /* PlanGeometry.swift in Sources */,
+				466C6AF5DC5DD0CE7BB2D035 /* Preferences.swift in Sources */,
+				B0C30CCB877E2152BB13BBF1 /* Product.swift in Sources */,
+				059B6DD9D2D9F4400E399BD2 /* ProfileButton.swift in Sources */,
+				CBF768B93827EECEB2C821F0 /* ProfileSheet.swift in Sources */,
+				FDC962EA672E7A96D607CCCF /* RecommendedLayoutsView.swift in Sources */,
+				1527A3B13E8CAFE5A8E027DB /* Room.swift in Sources */,
+				C61148B53DC487CB5D8F0CBB /* RoomBuilderView.swift in Sources */,
+				325275B581C17A7B798DD70F /* RoomCanvasView.swift in Sources */,
+				B340C1C5212BCBD01944910D /* RoomLayout.swift in Sources */,
+				0558C2035AD8900DB4074C26 /* RoomListView.swift in Sources */,
+				8F7F40E4ABAEF05846A22866 /* RootView.swift in Sources */,
+				A17679F3C92F52D20F7E43AD /* SeedData.swift in Sources */,
+				01A08CEC0FB3DD615951F9CC /* Settings.swift in Sources */,
+				A4329FD659B40739A6127027 /* Theme.swift in Sources */,
+				1DC67EDA7E526CF0437E0BA3 /* Units.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9C328DBCA49B0FA94D75530D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 37DB9C41D1FC87E17B609022 /* InteriorDesign */;
+			targetProxy = 27736388950B1D4DC61318C9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6286EC27781153659013FB86 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesignTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InteriorDesign.app/InteriorDesign";
+			};
+			name = Debug;
+		};
+		6BD9FC598357FE052210A323 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesignTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InteriorDesign.app/InteriorDesign";
+			};
+			name = Release;
+		};
+		85B4593484E6F6316A181119 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9C9827D84CA3F44C8F18BA13 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Interior Design";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesign;
+				PRODUCT_NAME = InteriorDesign;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A56B79D93591981EB42B4A1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Interior Design";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesign;
+				PRODUCT_NAME = InteriorDesign;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B2B810CD05A5C68EC2DEF073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		869F774486C149030E603E79 /* Build configuration list for PBXNativeTarget "InteriorDesignTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6286EC27781153659013FB86 /* Debug */,
+				6BD9FC598357FE052210A323 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9D99BEAAA1996B7D7A84C44D /* Build configuration list for PBXNativeTarget "InteriorDesign" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A56B79D93591981EB42B4A1F /* Debug */,
+				9C9827D84CA3F44C8F18BA13 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BC44936290EDB22F7267DB20 /* Build configuration list for PBXProject "InteriorDesign" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				85B4593484E6F6316A181119 /* Debug */,
+				B2B810CD05A5C68EC2DEF073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D2BF67946FBFB6DD4CEA9E64 /* Project object */;
+}
