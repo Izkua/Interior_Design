@@ -4,6 +4,8 @@ import SwiftData
 enum RoomShape: String, Codable, CaseIterable, Identifiable {
     case rectangle
     case square
+    /// Any outline drawn corner by corner in the advanced builder.
+    case custom
 
     var id: String { rawValue }
 
@@ -11,6 +13,7 @@ enum RoomShape: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .rectangle: return "Rectangle"
         case .square: return "Square"
+        case .custom: return "Custom"
         }
     }
 }
@@ -112,6 +115,22 @@ extension FeatureKind {
     }
 }
 
+/// A wall length the person measured with a tape, as opposed to the
+/// length the drawing happens to have.
+struct WallMeasurement: Codable, Hashable {
+    var wall: Int
+    var lengthCm: Double
+}
+
+/// Everything the advanced builder edits, in one value, so a whole edit
+/// can be saved for undo and put back in one step.
+struct RoomOutline: Equatable {
+    var corners: [Point2D]
+    var features: [FixedFeature]
+    var measurements: [WallMeasurement]
+    var uncertainWalls: [Int] = []
+}
+
 @Model
 final class Room {
     var uuid: UUID
@@ -120,6 +139,12 @@ final class Room {
     /// Corner points in centimeters, clockwise from the top-left.
     var corners: [Point2D]
     var features: [FixedFeature]
+    /// Walls the person measured. Rooms saved before this existed load
+    /// with none.
+    var measurements: [WallMeasurement] = []
+    /// Walls a scan wasn't sure about, highlighted until the person
+    /// measures or moves them.
+    var uncertainWalls: [Int] = []
     var createdAt: Date
     var updatedAt: Date
 
@@ -162,7 +187,7 @@ final class Room {
     }
 
     /// Floor area in square centimeters.
-    var area: Double { width * length }
+    var area: Double { PolygonGeometry.area(corners) }
 
     /// Changes the room to a new rectangle and keeps every door, window,
     /// and outlet inside its wall.
@@ -187,11 +212,26 @@ final class Room {
         return adjusted
     }
 
+    /// Switches between rectangle, square, and custom. Going to custom
+    /// keeps the corners so they can be edited one by one; going back to a
+    /// rectangle or square uses the room's overall width and length.
     func setShape(_ newShape: RoomShape) {
+        let wasCustom = shape == .custom
         shape = newShape
-        if newShape == .square {
+        switch newShape {
+        case .square:
+            measurements = []
+            uncertainWalls = []
             resize(width: width, length: width)
-        } else {
+        case .rectangle:
+            if wasCustom {
+                measurements = []
+                uncertainWalls = []
+                resize(width: width, length: length)
+            } else {
+                updatedAt = Date()
+            }
+        case .custom:
             updatedAt = Date()
         }
     }
@@ -238,5 +278,169 @@ final class Room {
     func removeFeature(id featureID: UUID) {
         features.removeAll { $0.id == featureID }
         updatedAt = Date()
+    }
+
+    // MARK: Corners (advanced builder)
+
+    /// Corners, features, measurements, and unsure walls together, for undo.
+    var outline: RoomOutline {
+        get { RoomOutline(corners: corners, features: features, measurements: measurements, uncertainWalls: uncertainWalls) }
+        set {
+            corners = newValue.corners
+            features = newValue.features
+            measurements = newValue.measurements
+            uncertainWalls = newValue.uncertainWalls
+            updatedAt = Date()
+        }
+    }
+
+    /// Moves every door, window, and outlet fully onto its wall.
+    func refitFeatures() {
+        features = features.map(fitted)
+    }
+
+    /// Moves one corner. Doors and windows on the two walls that meet there
+    /// slide with their walls.
+    func moveCorner(_ index: Int, to point: Point2D) {
+        guard corners.indices.contains(index) else { return }
+        let old = corners
+        corners[index] = point
+        features = features.map { stretched($0, from: old) }
+        // Moving a corner by hand counts as checking the two walls at it.
+        let before = PolygonGeometry.wrap(index - 1, corners.count)
+        uncertainWalls.removeAll { $0 == index || $0 == before }
+        updatedAt = Date()
+    }
+
+    /// Adds a corner at `point`, splitting the wall nearest to it. Returns
+    /// the new corner's index.
+    @discardableResult
+    func insertCorner(at point: Point2D) -> Int {
+        let old = corners
+        let wall = PlanGeometry.nearestWall(to: point, corners: old).wall
+        let index = wall + 1
+        corners.insert(point, at: index)
+        features = features.map { replaced($0, from: old) }
+        // The split wall is now two new walls, so its measurement no longer
+        // applies; walls after it move up by one.
+        measurements = measurements.compactMap { m in
+            if m.wall == wall { return nil }
+            return WallMeasurement(wall: m.wall > wall ? m.wall + 1 : m.wall, lengthCm: m.lengthCm)
+        }
+        // A split unsure wall leaves two unsure walls.
+        uncertainWalls = uncertainWalls.flatMap { w -> [Int] in
+            if w == wall { return [w, w + 1] }
+            return [w > wall ? w + 1 : w]
+        }
+        updatedAt = Date()
+        return index
+    }
+
+    /// Removes a corner, joining its two walls into one. A room keeps at
+    /// least three corners, so this does nothing on a triangle.
+    @discardableResult
+    func removeCorner(_ index: Int) -> Bool {
+        let count = corners.count
+        guard count > 3, corners.indices.contains(index) else { return false }
+        let old = corners
+        corners.remove(at: index)
+        // Features on either joined wall move to the nearest remaining wall.
+        features = features.map { replaced($0, from: old) }
+        let before = PolygonGeometry.wrap(index - 1, count)
+        measurements = measurements.compactMap { m in
+            if m.wall == before || m.wall == index { return nil }
+            return WallMeasurement(wall: m.wall > index ? m.wall - 1 : m.wall, lengthCm: m.lengthCm)
+        }
+        // The two joined walls become one wall, at index `before` (shifted
+        // down if it came after the removed corner).
+        let joined = before > index ? before - 1 : before
+        let joinedUnsure = uncertainWalls.contains(before) || uncertainWalls.contains(index)
+        uncertainWalls = uncertainWalls.compactMap { w in
+            if w == before || w == index { return nil }
+            return w > index ? w - 1 : w
+        } + (joinedUnsure ? [joined] : [])
+        updatedAt = Date()
+        return true
+    }
+
+    /// The length the person measured for a wall, if any.
+    func measuredLength(_ wall: Int) -> Double? {
+        measurements.first { $0.wall == wall }?.lengthCm
+    }
+
+    /// Records a measured wall length and moves the wall's far corner so
+    /// the drawing matches it.
+    func setWallLength(_ wall: Int, to length: Double) {
+        guard corners.indices.contains(wall), length > 0 else { return }
+        let old = corners
+        corners = PolygonGeometry.settingWallLength(wall, to: length, corners: old)
+        features = features.map { stretched($0, from: old) }
+        recordMeasurement(wall, length)
+        uncertainWalls.removeAll { $0 == wall }
+        updatedAt = Date()
+    }
+
+    /// Each wall's measured length, or its drawn length if not measured.
+    var lengthsForCheck: [Double] {
+        corners.indices.map { measuredLength($0) ?? PlanGeometry.wallLength($0, corners: corners) }
+    }
+
+    /// Nil when the measured walls fit together (or nothing is measured);
+    /// otherwise which wall is most likely off and by how much.
+    var closureCheck: PolygonGeometry.ClosureCheck? {
+        guard shape == .custom, !measurements.isEmpty else { return nil }
+        return PolygonGeometry.closureCheck(corners: corners, lengths: lengthsForCheck)
+    }
+
+    /// Takes the suggested length for the wall that is off, then reshapes
+    /// the room to match every measurement.
+    func applyFix(_ check: PolygonGeometry.ClosureCheck) {
+        recordMeasurement(check.wall, check.suggestedLength)
+        fitToMeasurements()
+    }
+
+    /// Redraws the outline from the measured lengths, keeping each wall's
+    /// direction and closing any small leftover gap.
+    func fitToMeasurements() {
+        let old = corners
+        // Closing the gap tilts the walls a little, which changes the walk,
+        // so repeat a few times until the measurements fit.
+        for _ in 0..<20 {
+            corners = PolygonGeometry.closedOutline(corners: corners, lengths: lengthsForCheck)
+            if PolygonGeometry.closureCheck(corners: corners, lengths: lengthsForCheck, tolerance: 0.5) == nil {
+                break
+            }
+        }
+        features = features.map { stretched($0, from: old) }
+        updatedAt = Date()
+    }
+
+    private func recordMeasurement(_ wall: Int, _ length: Double) {
+        measurements.removeAll { $0.wall == wall }
+        measurements.append(WallMeasurement(wall: wall, lengthCm: length))
+        measurements.sort { $0.wall < $1.wall }
+    }
+
+    /// The feature on the same wall, the same fraction of the way along,
+    /// after that wall changed length. For edits that keep the corner count.
+    private func stretched(_ feature: FixedFeature, from old: [Point2D]) -> FixedFeature {
+        let oldLength = PlanGeometry.wallLength(feature.wall, corners: old)
+        let newLength = PlanGeometry.wallLength(feature.wall, corners: corners)
+        var adjusted = feature
+        if oldLength > 0 {
+            adjusted.offsetCm = feature.offsetCm / oldLength * newLength
+        }
+        return fitted(adjusted)
+    }
+
+    /// The feature on whichever new wall passes closest to where it was.
+    /// For edits that add or remove corners, which renumber the walls.
+    private func replaced(_ feature: FixedFeature, from old: [Point2D]) -> FixedFeature {
+        let spot = PlanGeometry.point(onWall: feature.wall, offset: feature.offsetCm, corners: old)
+        let target = PlanGeometry.nearestWall(to: spot, corners: corners)
+        var adjusted = feature
+        adjusted.wall = target.wall
+        adjusted.offsetCm = target.offset
+        return fitted(adjusted)
     }
 }

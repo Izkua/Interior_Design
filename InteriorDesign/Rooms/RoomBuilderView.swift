@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// The basic room builder: pick a shape, type the size, and place doors,
-/// windows, and outlets. Changes save as you make them.
+/// The room builder. Basic mode: pick rectangle or square and type the
+/// size. Advanced mode: draw any shape corner by corner and type measured
+/// wall lengths. Both place doors, windows, and outlets, and changes save
+/// as you make them.
 struct RoomBuilderView: View {
     @Bindable var room: Room
 
@@ -15,6 +17,14 @@ struct RoomBuilderView: View {
     @State private var showRename = false
     @State private var draftName = ""
     @State private var confirmDelete = false
+    @State private var selectedWall: Int?
+    @State private var confirmBasic = false
+    @State private var showScan = false
+    /// Undo and redo for the advanced builder. Kept only while this screen
+    /// is open.
+    @State private var history = EditHistory<RoomOutline>()
+
+    @AppStorage(SettingsKey.lockAngles) private var lockAngles = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -25,16 +35,39 @@ struct RoomBuilderView: View {
         VStack(spacing: 0) {
             // The plan stays pinned at the top while the form scrolls below.
             AppCard(padding: 0) {
-                RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, unit: unit)
-                    .frame(height: 300)
+                if isAdvanced {
+                    VStack(spacing: 0) {
+                        AdvancedRoomCanvas(
+                            room: room,
+                            selectedWall: $selectedWall,
+                            selectedFeatureID: $selectedFeatureID,
+                            unit: unit,
+                            lockAngles: lockAngles,
+                            willEdit: recordForUndo
+                        )
+                        .frame(height: 300)
+                        .clipped()
+                        Divider()
+                        advancedControls
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                } else {
+                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, unit: unit)
+                        .frame(height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                }
             }
             .padding(.horizontal, Theme.Space.md)
             .padding(.top, Theme.Space.sm)
 
             ScrollView {
                 VStack(spacing: Theme.Space.md) {
-                    sizeCard
+                    modeCard
+                    if isAdvanced {
+                        advancedCards
+                    } else {
+                        sizeCard
+                    }
                     featuresCard
                 }
                 .padding(Theme.Space.md)
@@ -84,19 +117,250 @@ struct RoomBuilderView: View {
         } message: {
             Text("Your items stay in Current Items.")
         }
+        .confirmationDialog("Switch to a basic room?", isPresented: $confirmBasic, titleVisibility: .visible) {
+            Button("Make it a rectangle") { switchToBasic() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your corners will be replaced by a \(Length.format(room.width, system: unit)) × \(Length.format(room.length, system: unit)) rectangle.")
+        }
+        .sheet(isPresented: $showScan) {
+            ScanRoomView { draft in
+                recordForUndo()
+                room.apply(draft)
+                selectedWall = nil
+            }
+        }
         .onDisappear {
             try? context.save()
         }
     }
 
-    // MARK: Shape and size
+    // MARK: Basic or advanced
+
+    private var isAdvanced: Bool { room.shape == .custom }
+
+    private var modeCard: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+                Picker("Builder", selection: modeBinding) {
+                    Text("Basic").tag(false)
+                    Text("Advanced").tag(true)
+                }
+                .pickerStyle(.segmented)
+
+                Text(isAdvanced
+                     ? "Draw any shape: tap the plan to add a corner, drag a corner to move it, long-press to delete it. Tap a wall to type its length."
+                     : "A rectangle or square room. For L-shapes and angled walls, use Advanced.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // LiDAR phones can scan now; others see why not and are
+                // pointed back to the drawing tools.
+                Chip(title: RoomPlanScan.isAvailable ? "Scan room · Beta" : "Scan room · Coming soon", systemImage: "camera.viewfinder") { showScan = true }
+                    .accessibilityHint("Makes a draft outline from a scan, for you to check")
+            }
+        }
+    }
+
+    private var modeBinding: Binding<Bool> {
+        Binding(
+            get: { isAdvanced },
+            set: { advanced in
+                if advanced {
+                    recordForUndo()
+                    room.setShape(.custom)
+                } else if isPlainRectangle {
+                    switchToBasic()
+                } else {
+                    confirmBasic = true
+                }
+            }
+        )
+    }
+
+    /// True when the custom outline is still an upright rectangle, so going
+    /// back to Basic loses nothing.
+    private var isPlainRectangle: Bool {
+        let rectangle = PlanGeometry.rectangleCorners(width: room.width, length: room.length)
+        guard room.corners.count == 4, let minX = room.corners.map(\.x).min(), let minY = room.corners.map(\.y).min() else {
+            return false
+        }
+        let shifted = room.corners.map { Point2D(x: $0.x - minX, y: $0.y - minY) }
+        return zip(shifted, rectangle).allSatisfy { PlanGeometry.distance($0, $1) < 0.5 }
+    }
+
+    private func switchToBasic() {
+        recordForUndo()
+        selectedWall = nil
+        room.setShape(.rectangle)
+    }
+
+    // MARK: Advanced builder
+
+    /// The row under the plan: Lock angles at the bottom left, undo and
+    /// redo at the bottom right.
+    private var advancedControls: some View {
+        HStack(spacing: Theme.Space.sm) {
+            Chip(title: "Lock angles", systemImage: lockAngles ? "lock.fill" : "lock.open", isSelected: lockAngles) {
+                lockAngles.toggle()
+            }
+            .accessibilityHint("Snaps corners to 30, 45, 60, or 90 degrees while dragging")
+
+            Spacer()
+
+            IconButton(systemName: "arrow.uturn.backward", label: "Undo", action: undo)
+                .disabled(!history.canUndo)
+                .opacity(history.canUndo ? 1 : 0.4)
+            IconButton(systemName: "arrow.uturn.forward", label: "Redo", action: redo)
+                .disabled(!history.canRedo)
+                .opacity(history.canRedo ? 1 : 0.4)
+        }
+        .padding(.horizontal, Theme.Space.sm + 4)
+        .padding(.vertical, Theme.Space.sm)
+    }
+
+    @ViewBuilder
+    private var advancedCards: some View {
+        if !PolygonGeometry.isSimple(room.corners) {
+            warningCard(
+                title: "Two walls cross",
+                message: "Drag a corner back so the walls don't cross, or tap Undo."
+            )
+        }
+
+        if let check = room.closureCheck {
+            mismatchCard(check)
+        }
+
+        if !room.uncertainWalls.isEmpty {
+            warningCard(
+                title: "Check the dashed walls",
+                message: "The scan wasn't sure about \(room.uncertainWalls.count == 1 ? "1 wall" : "\(room.uncertainWalls.count) walls"). Tap a dashed wall to type its real length, or drag its corners."
+            )
+        }
+
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+                if let wall = selectedWall, room.corners.indices.contains(wall) {
+                    wallEditor(wall)
+                } else {
+                    SectionHeader(title: "Walls")
+                    Text("Tap a wall on the plan to type the length you measured.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Divider()
+                HStack {
+                    Text("\(room.corners.count) corners")
+                    Spacer()
+                    Text("Floor area \(Length.formatArea(room.area, system: unit))")
+                }
+                .font(Typography.caption)
+                .foregroundStyle(Theme.textSecondary)
+            }
+        }
+    }
+
+    private func wallEditor(_ wall: Int) -> some View {
+        let measured = room.measuredLength(wall)
+        let binding = Binding<Double>(
+            // Read fresh each time, not the values captured above.
+            get: { room.measuredLength(wall) ?? PlanGeometry.wallLength(wall, corners: room.corners) },
+            set: { newLength in
+                recordForUndo()
+                room.setWallLength(wall, to: newLength)
+            }
+        )
+        return VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+            HStack {
+                SectionHeader(title: PlanGeometry.wallName(wall, cornerCount: room.corners.count))
+                if measured != nil { Tag(text: "Measured") }
+            }
+            LengthField(
+                title: "Length",
+                cm: binding,
+                unit: unit,
+                range: 30...3000,
+                updatesWhileTyping: false
+            )
+            .id(wall)
+            Text("The wall's far corner moves to match. Tap Return when done.")
+                .font(Typography.caption)
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    /// Shown when the measured walls cannot all be true at once.
+    private func mismatchCard(_ check: PolygonGeometry.ClosureCheck) -> some View {
+        let wallName = PlanGeometry.wallName(check.wall, cornerCount: room.corners.count)
+        let measured = room.measuredLength(check.wall) ?? PlanGeometry.wallLength(check.wall, corners: room.corners)
+        let direction = check.difference > 0 ? "short" : "long"
+        return AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+                Label("Your measurements don't fit together", systemImage: "exclamationmark.triangle.fill")
+                    .font(Typography.headline)
+                    .foregroundStyle(Theme.danger)
+                Text("The walls miss closing by \(Length.format(check.gap, system: unit)). \(wallName) is most likely \(Length.format(abs(check.difference), system: unit)) too \(direction): measured \(Length.format(measured, system: unit)), but the room needs \(Length.format(check.suggestedLength, system: unit)).")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                PrimaryButton(title: "Use \(Length.format(check.suggestedLength, system: unit)) for \(wallName.lowercased())") {
+                    recordForUndo()
+                    room.applyFix(check)
+                }
+                Text("Or re-measure that wall and type the new length.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+    }
+
+    private func warningCard(title: String, message: String) -> some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Label(title, systemImage: "exclamationmark.triangle.fill")
+                    .font(Typography.headline)
+                    .foregroundStyle(Theme.danger)
+                Text(message)
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: Undo
+
+    private func recordForUndo() {
+        history.record(room.outline)
+    }
+
+    private func undo() {
+        guard let previous = history.undo(current: room.outline) else { return }
+        restore(previous)
+    }
+
+    private func redo() {
+        guard let next = history.redo(current: room.outline) else { return }
+        restore(next)
+    }
+
+    private func restore(_ outline: RoomOutline) {
+        room.outline = outline
+        if let wall = selectedWall, !outline.corners.indices.contains(wall) {
+            selectedWall = nil
+        }
+    }
+
+    // MARK: Shape and size (basic)
 
     private var sizeCard: some View {
         AppCard {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
                 SectionHeader(title: "Shape")
                 Picker("Shape", selection: shapeBinding) {
-                    ForEach(RoomShape.allCases) { shape in
+                    ForEach([RoomShape.rectangle, .square]) { shape in
                         Text(shape.title).tag(shape)
                     }
                 }

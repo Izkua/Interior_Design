@@ -2,13 +2,16 @@ import SwiftUI
 
 // MARK: - Button press style
 
-/// Subtle scale-and-fade on press, used by every custom button.
+/// Subtle scale-and-fade on press, used by every custom button. With
+/// Reduce Motion on, it only fades.
 struct PressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
@@ -152,12 +155,20 @@ struct SectionHeader: View {
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
-        HStack {
+        // At the largest text sizes the title and button go on two lines
+        // instead of squeezing each other.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout())
+        layout {
             Text(title)
                 .font(Typography.headline)
                 .foregroundStyle(Theme.textPrimary)
-            Spacer()
+                .accessibilityAddTraits(.isHeader)
+            if !typeSize.isAccessibilitySize { Spacer() }
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(Typography.subheadline)

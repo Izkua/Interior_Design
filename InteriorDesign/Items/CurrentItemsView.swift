@@ -3,11 +3,15 @@ import SwiftData
 
 struct CurrentItemsView: View {
     @Query(sort: \Item.createdAt) private var items: [Item]
+    @Query(sort: \Room.updatedAt, order: .reverse) private var rooms: [Room]
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
     @State private var showRooms = false
-    @State private var showCameraNote = false
+    @State private var showCapture = false
+    /// Owned by RootView, so onboarding can open the add-item sheet.
+    @Binding var showAddItem: Bool
+    @State private var itemToEdit: Item?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -24,15 +28,21 @@ struct CurrentItemsView: View {
                         systemImage: "sofa",
                         title: "No items yet",
                         message: "Add the furniture you own to see layouts for your room.",
-                        actionTitle: "Set up your room"
+                        actionTitle: "Add an item"
                     ) {
-                        showRooms = true
+                        showAddItem = true
                     }
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: Theme.Space.sm + 4) {
                             ForEach(items) { item in
-                                ItemCard(item: item, unit: unit)
+                                Button {
+                                    itemToEdit = item
+                                } label: {
+                                    ItemCard(item: item, unit: unit)
+                                }
+                                .buttonStyle(PressableStyle())
+                                .accessibilityHint("Opens the item to edit it")
                             }
                         }
                         .padding(Theme.Space.md)
@@ -42,13 +52,18 @@ struct CurrentItemsView: View {
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Current Items")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ToolbarIconButton(systemName: "plus", label: "Add item") {
+                        showAddItem = true
+                    }
+                }
                 // Left to right: room layout, camera, profile.
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     ToolbarIconButton(systemName: "ruler", label: "Room layout") {
                         showRooms = true
                     }
                     ToolbarIconButton(systemName: "camera", label: "Take a photo of an item") {
-                        showCameraNote = true
+                        showCapture = true
                     }
                     ProfileButton()
                 }
@@ -56,10 +71,16 @@ struct CurrentItemsView: View {
             .navigationDestination(isPresented: $showRooms) {
                 RoomListView()
             }
-            .alert("Photo capture is coming soon", isPresented: $showCameraNote) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("You'll be able to photograph a piece of furniture and have it labeled and sized for you.")
+            .sheet(isPresented: $showAddItem) {
+                // New items go in the most recently edited room; the
+                // person can pick another room or none.
+                ItemEditorSheet(item: nil, defaultRoom: rooms.first)
+            }
+            .sheet(item: $itemToEdit) { item in
+                ItemEditorSheet(item: item)
+            }
+            .sheet(isPresented: $showCapture) {
+                CaptureFlowView()
             }
         }
     }

@@ -1,11 +1,13 @@
 import Foundation
 import SwiftData
 
-/// A product from the catalog, cached on the device. Filled in by the
-/// catalog work in a later week.
+/// A product the person saved to their wishlist. Search results are plain
+/// `CatalogProduct` values; only saved ones are stored here.
 @Model
 final class Product {
     var uuid: UUID
+    /// The catalog's own ID, so saving the same product twice is noticed.
+    var externalID: String = ""
     var name: String
     var price: Double
     var currencyCode: String
@@ -14,12 +16,16 @@ final class Product {
     var widthCm: Double?
     var depthCm: Double?
     var heightCm: Double?
+    var typeRaw: String?
     var materials: [String]
+    var styles: [String] = []
+    var colors: [String] = []
     var rating: Double?
     var reviewCount: Int?
     var imageURL: String?
     var retailer: String
     var linkURL: String
+    var isSample: Bool = false
     var fetchedAt: Date
 
     init(
@@ -50,5 +56,51 @@ final class Product {
         self.retailer = retailer
         self.linkURL = linkURL
         self.fetchedAt = Date()
+    }
+
+    /// Saves a search result.
+    convenience init(_ product: CatalogProduct) {
+        self.init(
+            name: product.name,
+            price: product.price,
+            currencyCode: product.currency,
+            widthCm: product.widthCm,
+            depthCm: product.depthCm,
+            heightCm: product.heightCm,
+            materials: product.materials,
+            rating: product.rating,
+            reviewCount: product.reviewCount,
+            imageURL: product.imageURL?.absoluteString,
+            retailer: product.retailer,
+            linkURL: product.url?.absoluteString ?? ""
+        )
+        externalID = product.id
+        typeRaw = product.type?.rawValue
+        styles = product.styles
+        colors = product.colors
+        isSample = product.isSample
+    }
+
+    /// Back to the plain value the catalog screens use.
+    var catalogProduct: CatalogProduct {
+        CatalogProduct(
+            id: externalID.isEmpty ? uuid.uuidString : externalID,
+            name: name,
+            price: price,
+            currency: currencyCode,
+            widthCm: widthCm,
+            depthCm: depthCm,
+            heightCm: heightCm,
+            type: typeRaw.flatMap(ItemType.init(rawValue:)),
+            materials: materials,
+            styles: styles,
+            colors: colors,
+            rating: rating,
+            reviewCount: reviewCount,
+            imageURL: imageURL.flatMap(URL.init(string:)),
+            retailer: retailer,
+            url: linkURL.isEmpty ? nil : URL(string: linkURL),
+            isSample: isSample
+        )
     }
 }

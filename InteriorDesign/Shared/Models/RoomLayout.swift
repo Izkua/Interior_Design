@@ -12,14 +12,17 @@ struct ItemPlacement: Codable, Hashable {
 }
 
 /// One arrangement of a room's items. (Named RoomLayout so it does not
-/// clash with SwiftUI's `Layout` protocol.) The layout engine arrives in a
-/// later week; this is the stored shape of its results.
+/// clash with SwiftUI's `Layout` protocol.) Saved when the person picks a
+/// suggestion from the layout engine.
 @Model
 final class RoomLayout {
     var uuid: UUID
     var label: String
     var score: Double
     var placements: [ItemPlacement]
+    /// True for the one layout the person picked for the room. Where its
+    /// items are counts as "where things are now".
+    var isChosen: Bool = false
     var createdAt: Date
     var room: Room?
 

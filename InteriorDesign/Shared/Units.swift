@@ -30,6 +30,23 @@ enum UnitSystem: String, CaseIterable, Identifiable {
     }
 }
 
+/// What a length measures, which changes what a bare number means.
+/// "12" is 12 feet for a wall but 12 inches for a stool.
+enum LengthScale {
+    /// Walls and rooms: bare numbers are feet, or meters (centimeters when
+    /// the number is too big to be meters).
+    case room
+    /// Furniture: bare numbers are inches, or centimeters.
+    case furniture
+
+    func example(_ system: UnitSystem) -> String {
+        switch self {
+        case .room: return system.example
+        case .furniture: return system == .imperial ? "34″" : "85 cm"
+        }
+    }
+}
+
 enum Length {
     static let cmPerInch = 2.54
     static let cmPerFoot = 30.48
@@ -54,6 +71,23 @@ enum Length {
         }
     }
 
+    /// One furniture measurement: "34″" or "85 cm". Small sizes, like a
+    /// rug's thickness, keep one decimal so they never show as zero.
+    static func formatFurniture(_ cm: Double, system: UnitSystem) -> String {
+        switch system {
+        case .metric:
+            return cm < 10 ? "\(trimmed(cm, decimals: 1)) cm" : "\(Int(cm.rounded())) cm"
+        case .imperial:
+            let inches = cm / cmPerInch
+            return inches < 10 ? "\(trimmed(inches, decimals: 1))″" : "\(Int(inches.rounded()))″"
+        }
+    }
+
+    /// Either kind of length, formatted for its scale.
+    static func format(_ cm: Double, system: UnitSystem, scale: LengthScale) -> String {
+        scale == .room ? format(cm, system: system) : formatFurniture(cm, system: system)
+    }
+
     /// Furniture size: "210 × 90 × 85 cm" or "83 × 35 × 33 in".
     static func formatDimensions(width: Double, depth: Double, height: Double, system: UnitSystem) -> String {
         switch system {
@@ -62,6 +96,16 @@ enum Length {
         case .imperial:
             func inches(_ cm: Double) -> Int { Int((cm / cmPerInch).rounded()) }
             return "\(inches(width)) × \(inches(depth)) × \(inches(height)) in"
+        }
+    }
+
+    /// Floor area: "12.5 m²" or "135 sq ft".
+    static func formatArea(_ squareCm: Double, system: UnitSystem) -> String {
+        switch system {
+        case .metric:
+            return "\(trimmed(squareCm / 10_000, decimals: 1)) m²"
+        case .imperial:
+            return "\(Int((squareCm / (cmPerFoot * cmPerFoot)).rounded())) sq ft"
         }
     }
 
@@ -74,7 +118,11 @@ enum Length {
     /// (feet when imperial), `3.8` (meters when metric), `380` (centimeters
     /// when metric, because the number is too big to be meters), `3.8 m`,
     /// `380 cm`.
-    static func parse(_ raw: String, system: UnitSystem) -> Double? {
+    ///
+    /// With `scale: .furniture`, a bare number is inches (imperial) or
+    /// centimeters (metric) instead: `34` is a 34-inch table, and `6' 2"`
+    /// still works.
+    static func parse(_ raw: String, system: UnitSystem, scale: LengthScale = .room) -> Double? {
         var text = raw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         // The iOS keyboard may type curly quotes; treat them as ' and ".
@@ -96,12 +144,16 @@ enum Length {
         for pair in parsed {
             var unit = pair.unit
             if unit.isEmpty {
-                switch system {
-                case .metric:
+                switch (scale, system) {
+                case (.furniture, .metric):
+                    unit = "cm"
+                case (.furniture, .imperial):
+                    unit = "in"
+                case (.room, .metric):
                     // People type "3.8" for meters but "380" for
                     // centimeters; no room wall is over 30 m.
                     unit = pair.value > 30 ? "cm" : "m"
-                case .imperial:
+                case (.room, .imperial):
                     // "12' 6" means 12 feet 6 inches; a lone "12" means feet.
                     unit = previousWasFeet ? "in" : "ft"
                 }

@@ -1,20 +1,22 @@
 import SwiftUI
 import SwiftData
 
-private enum HomeRoute: Hashable {
+/// Screens Home can open. Also used by onboarding to land on the room list.
+enum HomeRoute: Hashable {
     case layouts
     case rooms
 }
 
 struct HomeView: View {
     @Binding var selectedTab: AppTab
+    /// Owned by RootView, so onboarding can open a screen here.
+    @Binding var path: [HomeRoute]
 
     @Query private var items: [Item]
     @Query(sort: \Room.updatedAt, order: .reverse) private var rooms: [Room]
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
-    @State private var path: [HomeRoute] = []
 
     private var itemsSubtitle: String {
         switch items.count {

@@ -75,4 +75,53 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(rooms.first?.width ?? 0, 320, accuracy: 0.001)
         XCTAssertEqual(rooms.first?.length ?? 0, 400, accuracy: 0.001)
     }
+
+    @MainActor
+    func testCustomRoomSurvivesRelaunch() throws {
+        do {
+            let container = try makeContainer()
+            let context = container.mainContext
+            let room = Room(name: "L-shaped den", width: 400, length: 400)
+            room.setShape(.custom)
+            room.insertCorner(at: Point2D(x: 410, y: 200))
+            room.moveCorner(3, to: Point2D(x: 200, y: 200))
+            room.insertCorner(at: Point2D(x: 200, y: 410))
+            room.setWallLength(0, to: 400)
+            room.addFeature(.window)
+            context.insert(room)
+            try context.save()
+        }
+
+        let container = try makeContainer()
+        let rooms = try container.mainContext.fetch(FetchDescriptor<Room>())
+        let room = try XCTUnwrap(rooms.first)
+        XCTAssertEqual(room.shape, .custom)
+        XCTAssertEqual(room.corners.count, 6)
+        XCTAssertEqual(PolygonGeometry.interiorAngle(at: 3, corners: room.corners), 270, accuracy: 0.5)
+        XCTAssertEqual(room.measuredLength(0), 400)
+        XCTAssertEqual(room.features.count, 1)
+    }
+
+    @MainActor
+    func testItemWithRoomSurvivesRelaunch() throws {
+        do {
+            let container = try makeContainer()
+            let context = container.mainContext
+            let room = Room(name: "Office", width: 300, length: 300)
+            context.insert(room)
+            var draft = ItemDraft(type: .desk, room: room)
+            draft.widthCm = 152
+            draft.isFixed = true
+            context.insert(draft.makeItem())
+            try context.save()
+        }
+
+        let container = try makeContainer()
+        let items = try container.mainContext.fetch(FetchDescriptor<Item>())
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.widthCm, 152)
+        XCTAssertTrue(item.isFixed)
+        XCTAssertFalse(item.isEstimated)
+        XCTAssertEqual(item.room?.name, "Office")
+    }
 }

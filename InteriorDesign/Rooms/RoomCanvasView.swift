@@ -56,7 +56,8 @@ enum RoomPlanPainter {
         features: [FixedFeature],
         selectedID: UUID?,
         space: CanvasSpace,
-        unit: UnitSystem
+        unit: UnitSystem,
+        showWallLengths: Bool = true
     ) {
         let count = corners.count
         guard count >= 3 else { return }
@@ -102,7 +103,7 @@ enum RoomPlanPainter {
         }
 
         // Wall lengths, just outside each wall.
-        for i in 0..<count {
+        for i in 0..<count where showWallLengths {
             let a = points[i]
             let b = points[(i + 1) % count]
             let dx = b.x - a.x

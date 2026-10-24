@@ -9,6 +9,11 @@ enum SettingsKey {
     static let preferredMaterials = "preferredMaterials"
     static let minimumRating = "minimumRating"
     static let didSeedSampleData = "didSeedSampleData"
+    static let lockAngles = "lockAngles"
+    /// Debug builds only: fake scan and image results, to try the screens
+    /// without paying for a model.
+    static let demoAIFeatures = "demoAIFeatures"
+    static let didFinishOnboarding = "didFinishOnboarding"
 }
 
 /// Styles a person can say they like. Used by the profile and, later,
