@@ -2,13 +2,17 @@
 // Body: the app's CatalogQuery. Returns { products: AppProduct[], cached: boolean }.
 //
 // Order of checks: rate limit (per person, or per device for guests) →
-// 24-hour cache → monthly credit cap (hard stop) → Channel3.
+// 1-hour cache → monthly credit cap (hard stop) → Channel3.
 
-import { error, json, secret } from "../_shared/http.ts";
+import { error, json } from "../_shared/http.ts";
 import { adminClient, config, currentUser, trySpend, underRateLimit } from "../_shared/supabase.ts";
 import { type AppQuery, cacheKey, type C3Product, channel3Request, normalize } from "../_shared/products.ts";
 
-const CACHE_HOURS = 24;
+// Channel3 advises against caching prices for long, and its buy links are
+// short-lived. Results are kept for an hour to save credits; the app gets a
+// fresh price and link from get-product (which is free) before showing a
+// "View at retailer" button.
+const CACHE_HOURS = 1;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return error("Use POST.", 405);
@@ -39,6 +43,13 @@ Deno.serve(async (req) => {
     return json({ products: cached.response, cached: true });
   }
 
+  // Not set up yet? Say so plainly, before counting a search against the cap.
+  const apiKey = Deno.env.get("CHANNEL3_API_KEY");
+  if (!apiKey) {
+    console.error("CHANNEL3_API_KEY secret is not set");
+    return error("The live catalog isn't set up yet.", 503);
+  }
+
   // 3. Hard stop at the monthly credit limit (1 credit per search).
   if (!(await trySpend("channel3", 1, 0, settings.monthly_search_limit, null))) {
     return error("The catalog has reached its monthly limit. Showing saved products instead.", 503);
@@ -47,7 +58,7 @@ Deno.serve(async (req) => {
   // 4. Ask Channel3.
   const response = await fetch("https://api.trychannel3.com/v1/search", {
     method: "POST",
-    headers: { "x-api-key": secret("CHANNEL3_API_KEY"), "Content-Type": "application/json" },
+    headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify(channel3Request(query)),
   });
   if (!response.ok) {

@@ -62,6 +62,33 @@ struct BackendCatalogService: CatalogService {
     }
 }
 
+extension BackendCatalogService {
+    /// The product with today's price and a fresh buy link. Channel3's buy
+    /// links expire, so this is called right before opening the retailer.
+    /// Free on Channel3's side and doesn't use the monthly search cap.
+    func freshProduct(id: String) async throws -> CatalogProduct {
+        var components = URLComponents(url: BackendConfig.functionsURL.appendingPathComponent("get-product"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "id", value: id)]
+        var request = URLRequest(url: components.url!)
+        request.timeoutInterval = 15
+        request.setValue(BackendConfig.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(await accessToken() ?? BackendConfig.publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(DeviceID.current, forHTTPHeaderField: "x-device-id")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw CatalogError.offline
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 429 { throw CatalogError.rateLimited }
+        guard status == 200 else { throw CatalogError.badResponse(status) }
+        struct Reply: Decodable { var product: CatalogProduct }
+        return try JSONDecoder().decode(Reply.self, from: data).product
+    }
+}
+
 // MARK: - Curated list (bundled with the app)
 
 /// A small hand-picked list shipped inside the app, so the Catalog tab is

@@ -15,6 +15,10 @@ struct ProductDetailView: View {
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
     @State private var showRetailer = false
+    /// The buy link to open: fetched fresh, or the saved one as a fallback.
+    @State private var retailerURL: URL?
+    @State private var isOpening = false
+    @State private var freshPrice: Double?
     /// Worked out here when the screen was opened without one.
     @State private var checkedFit: FitResult?
     /// Where the room's furniture stands, ready for the preview screen.
@@ -88,11 +92,19 @@ struct ProductDetailView: View {
                     .buttonStyle(PressableStyle())
                 }
 
-                if let url = product.url {
-                    PrimaryButton(title: "View at \(product.retailer)", systemImage: "arrow.up.right.square") {
-                        showRetailer = true
+                if product.url != nil {
+                    PrimaryButton(title: isOpening ? "Opening…" : "View at \(product.retailer)", systemImage: "arrow.up.right.square") {
+                        Task { await openRetailer() }
                     }
-                    .sheet(isPresented: $showRetailer) { SafariView(url: url).ignoresSafeArea() }
+                    .disabled(isOpening)
+                    .sheet(isPresented: $showRetailer) {
+                        if let retailerURL { SafariView(url: retailerURL).ignoresSafeArea() }
+                    }
+                    if let freshPrice, abs(freshPrice - product.price) >= 1 {
+                        Text("The price is now \(money(freshPrice, currency: product.currency)).")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
                 } else if product.isSample {
                     Text("This is a sample product to show how the catalog works. It isn't for sale.")
                         .font(Typography.caption)
@@ -167,6 +179,21 @@ struct ProductDetailView: View {
             item: item,
             placement: ItemPlacement(itemID: item.id, x: spot.x, y: spot.y, rotation: spot.rotation)
         )
+    }
+
+    /// Gets a fresh buy link (they expire) and today's price, then opens the
+    /// retailer. If that fails, the link we already have is used.
+    private func openRetailer() async {
+        isOpening = true
+        defer { isOpening = false }
+        if !product.isSample,
+           let fresh = try? await BackendCatalogService(accessToken: { await AuthStore.shared.validAccessToken() }).freshProduct(id: product.id) {
+            retailerURL = fresh.url ?? product.url
+            freshPrice = fresh.price
+        } else {
+            retailerURL = product.url
+        }
+        showRetailer = retailerURL != nil
     }
 
     private func toggleSaved() {

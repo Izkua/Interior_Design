@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "channel3-api": {
+      "source": "channel3-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/channel3-api/SKILL.md",
+      "computedHash": "6319a64b6b5d5471c613df76a0596819fcdb2d7fe95a593b99d5972e560c55c1"
+    }
+  }
+}

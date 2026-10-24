@@ -1,7 +1,8 @@
 // Turning Channel3 products into the app's product shape.
 //
 // Field names follow Channel3's published OpenAPI spec
-// (https://docs.trychannel3.com/openapi/openapi.json, read Oct 2026):
+// (https://docs.trychannel3.com/openapi/openapi.json) and their official
+// channel3-api skill (both read Oct 2026):
 // Product { id, title, brands[], images[], category, materials, colors[],
 // offers[], ratings }, ProductOffer { url, domain, price { price, currency },
 // availability, dimensions { length, width, height: { number, unit } } }.
@@ -58,6 +59,8 @@ export interface C3Product {
   colors?: { hex: string; percentage?: number }[];
   offers?: C3Offer[];
   ratings?: { value: number; count: number } | null;
+  /** e.g. { color: ["Navy"], material: ["Leather"] } */
+  structured_attributes?: Record<string, string[]>;
 }
 
 const CM_PER: Record<string, number> = { mm: 0.1, cm: 1, m: 100, in: 2.54, ft: 30.48 };
@@ -130,9 +133,13 @@ export function normalize(p: C3Product): AppProduct | null {
     depthCm: toCm(d?.length),
     heightCm: toCm(d?.height),
     type: itemType(p.category?.title ?? p.category?.slug, p.title),
-    materials: p.materials ?? [],
+    materials: [...new Set([...(p.materials ?? []), ...(p.structured_attributes?.material ?? [])])],
     styles: [],
-    colors: [...new Set((p.colors ?? []).slice(0, 2).map((c) => colorName(c.hex)).filter((c): c is string => !!c))],
+    // Named colors if Channel3 gives them; otherwise the closest name to
+    // the main colors in the product photo.
+    colors: p.structured_attributes?.color?.length
+      ? p.structured_attributes.color.slice(0, 3)
+      : [...new Set((p.colors ?? []).slice(0, 2).map((c) => colorName(c.hex)).filter((c): c is string => !!c))],
     rating: p.ratings ? Math.min(Math.max(p.ratings.value, 0), 5) : null,
     reviewCount: p.ratings?.count ?? null,
     imageURL: image?.cleaned_url ?? image?.url ?? null,
@@ -148,18 +155,37 @@ const TYPE_SEARCH: Record<string, string> = {
   dresser: "dresser", shelf: "bookshelf", tvStand: "tv stand", lamp: "floor lamp", rug: "area rug",
 };
 
+/** sRGB hex for each color the app offers, for Channel3's color filter. */
+export const COLOR_HEX: Record<string, string> = {
+  White: "#f5f5f2", Black: "#1a1a1a", Grey: "#808080", Beige: "#d8c3a5",
+  Brown: "#7b5235", Green: "#4a7a55", Blue: "#3c5a96",
+};
+
 /** The Channel3 search request for an app query. */
 export function channel3Request(q: AppQuery) {
+  // Materials and styles have no reliable filter without knowing the
+  // category's attribute names, so they go in the search words (Channel3
+  // recommends this over dropping them).
   const words = [q.text?.trim(), q.type ? TYPE_SEARCH[q.type] : null, ...(q.materials ?? []), ...(q.styles ?? [])]
     .filter((w): w is string => !!w && w.length > 0);
-  const query = words.length > 0 ? words.join(" ") : "furniture";
+  const filters: Record<string, unknown> = {};
   const price: Record<string, number> = {};
   if (q.minPrice) price.min_price = q.minPrice;
   if (q.maxPrice) price.max_price = q.maxPrice;
+  if (Object.keys(price).length > 0) filters.price = price;
+  // Colors use Channel3's color filter, not the search words. Their palette
+  // means "has all of these", so it's only used for a single color; with
+  // several (meaning "any of these") the names go in the search words.
+  const colors = (q.colors ?? []).filter((c) => COLOR_HEX[c]);
+  if (colors.length === 1) {
+    filters.colors = { palette: [{ hex: COLOR_HEX[colors[0]] }] };
+  } else {
+    words.push(...colors);
+  }
   return {
-    query,
+    query: words.length > 0 ? words.join(" ") : "furniture",
     limit: Math.min(Math.max(q.limit ?? 20, 1), 30),
-    filters: Object.keys(price).length > 0 ? { price } : undefined,
+    filters: Object.keys(filters).length > 0 ? filters : undefined,
     config: { length_unit: "cm" },
   };
 }

@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   const steps = [
     () => db.from("usage_events").delete().eq("user_id", user.id),
     () => db.from("profiles").delete().eq("id", user.id),
-    () => db.from("rate_limits").delete().eq("bucket", `user:${user.id}`),
+    () => db.from("rate_limits").delete().like("bucket", `user:${user.id}%`),
   ];
   for (const step of steps) {
     const { error: e } = await step();

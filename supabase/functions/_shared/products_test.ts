@@ -54,6 +54,21 @@ Deno.test("no offers means no product", () => {
   assertEquals(normalize({ ...sample, offers: [] }), null);
 });
 
+Deno.test("one color uses the color filter, several go in the words", () => {
+  const one = channel3Request({ type: "sofa", colors: ["Blue"] });
+  assertEquals(one.filters, { colors: { palette: [{ hex: "#3c5a96" }] } });
+  assertEquals(one.query, "sofa");
+  const two = channel3Request({ type: "sofa", colors: ["Blue", "Grey"] });
+  assertEquals(two.filters, undefined);
+  assertEquals(two.query, "sofa Blue Grey");
+});
+
+Deno.test("prefers named colors and adds materials from attributes", () => {
+  const p = normalize({ ...sample, structured_attributes: { color: ["Walnut"], material: ["Oak", "Steel"] } })!;
+  assertEquals(p.colors, ["Walnut"]);
+  assertEquals(p.materials, ["Oak", "Steel"]);
+});
+
 Deno.test("builds the Channel3 request", () => {
   const r = channel3Request({ text: "oak", type: "table", maxPrice: 400, limit: 99 });
   assertEquals(r.query, "oak table");
