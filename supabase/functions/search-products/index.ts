@@ -4,7 +4,7 @@
 // Order of checks: rate limit (per person, or per device for guests) →
 // 1-hour cache → monthly credit cap (hard stop) → Channel3.
 
-import { error, json } from "../_shared/http.ts";
+import { error, json, safely } from "../_shared/http.ts";
 import { adminClient, config, currentUser, trySpend, underRateLimit } from "../_shared/supabase.ts";
 import { type AppQuery, cacheKey, type C3Product, channel3Request, normalize } from "../_shared/products.ts";
 
@@ -14,7 +14,7 @@ import { type AppQuery, cacheKey, type C3Product, channel3Request, normalize } f
 // "View at retailer" button.
 const CACHE_HOURS = 1;
 
-Deno.serve(async (req) => {
+Deno.serve(safely(async (req) => {
   if (req.method !== "POST") return error("Use POST.", 405);
 
   let query: AppQuery;
@@ -75,4 +75,4 @@ Deno.serve(async (req) => {
 
   await db.from("product_cache").upsert({ key, response: products, created_at: new Date().toISOString() });
   return json({ products, cached: false });
-});
+}));

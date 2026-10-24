@@ -5,11 +5,11 @@
 // the monthly search cap and isn't cached: buy links are short-lived and
 // should be fetched right before they're shown. It's still rate-limited.
 
-import { error, json } from "../_shared/http.ts";
+import { error, json, safely } from "../_shared/http.ts";
 import { config, currentUser, underRateLimit } from "../_shared/supabase.ts";
 import { type C3Product, normalize } from "../_shared/products.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(safely(async (req) => {
   const id = new URL(req.url).searchParams.get("id");
   if (!id || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return error("Missing or bad product id.", 400);
 
@@ -40,4 +40,4 @@ Deno.serve(async (req) => {
   const product = normalize((await response.json()) as C3Product);
   if (!product) return error("That product has no offers.", 404);
   return json({ product });
-});
+}));
