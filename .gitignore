@@ -21,3 +21,4 @@ xcuserdata/
 *.xcconfig.local
 Secrets.xcconfig
 .env
+.env.*
