@@ -12,6 +12,29 @@ struct CurrentItemsView: View {
     /// Owned by RootView, so onboarding can open the add-item sheet.
     @Binding var showAddItem: Bool
     @State private var itemToEdit: Item?
+    @State private var filter: RoomFilter = .all
+
+    /// Which items to show.
+    enum RoomFilter: Hashable {
+        case all
+        case room(UUID)
+        case unassigned
+    }
+
+    private var shownItems: [Item] {
+        switch filter {
+        case .all: return items
+        case .unassigned: return items.filter(\.isUnassigned)
+        case .room(let id):
+            guard let room = rooms.first(where: { $0.uuid == id }) else { return items }
+            return items.filter { $0.belongs(to: room) }
+        }
+    }
+
+    private var filteredRoom: Room? {
+        if case .room(let id) = filter { return rooms.first { $0.uuid == id } }
+        return nil
+    }
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -34,8 +57,18 @@ struct CurrentItemsView: View {
                     }
                 } else {
                     ScrollView {
+                        if rooms.count > 0 {
+                            filterBar
+                        }
+                        if shownItems.isEmpty {
+                            Text(filter == .unassigned ? "Every piece is in a room." : "Nothing in this room yet. Add a piece, or edit one and pick this room.")
+                                .font(Typography.body)
+                                .foregroundStyle(Theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(Theme.Space.lg)
+                        }
                         LazyVGrid(columns: columns, spacing: Theme.Space.sm + 4) {
-                            ForEach(items) { item in
+                            ForEach(shownItems) { item in
                                 Button {
                                     itemToEdit = item
                                 } label: {
@@ -74,7 +107,7 @@ struct CurrentItemsView: View {
             .sheet(isPresented: $showAddItem) {
                 // New items go in the most recently edited room; the
                 // person can pick another room or none.
-                ItemEditorSheet(item: nil, defaultRoom: rooms.first)
+                ItemEditorSheet(item: nil, defaultRoom: filteredRoom ?? rooms.first)
             }
             .sheet(item: $itemToEdit) { item in
                 ItemEditorSheet(item: item)
@@ -83,5 +116,21 @@ struct CurrentItemsView: View {
                 CaptureFlowView()
             }
         }
+    }
+
+    /// "All", each room, and "Not assigned", as chips that scroll sideways.
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Space.sm) {
+                Chip(title: "All", isSelected: filter == .all) { filter = .all }
+                ForEach(rooms) { room in
+                    Chip(title: room.name, isSelected: filter == .room(room.uuid)) { filter = .room(room.uuid) }
+                }
+                Chip(title: "Not assigned", isSelected: filter == .unassigned) { filter = .unassigned }
+            }
+            .padding(.horizontal, Theme.Space.md)
+        }
+        .padding(.top, Theme.Space.sm)
+        .accessibilityLabel("Show items in")
     }
 }

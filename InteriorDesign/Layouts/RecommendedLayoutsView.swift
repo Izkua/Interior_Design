@@ -33,7 +33,7 @@ struct RecommendedLayoutsView: View {
                     message: "Draw your room first, then layouts for it will appear here.",
                     actionTitle: "Create a room"
                 ) { showRooms = true }
-            } else if let room, room.items.isEmpty {
+            } else if let room, room.allItems.isEmpty {
                 EmptyState(
                     systemImage: "sofa",
                     title: "No furniture in \(room.name)",
@@ -220,7 +220,7 @@ struct RecommendedLayoutsView: View {
 
     /// Runs the engine off the main thread so the screen never freezes.
     private func generate() async {
-        guard let room, !room.items.isEmpty else {
+        guard let room, !room.allItems.isEmpty else {
             suggestions = []
             return
         }

@@ -13,11 +13,11 @@ extension Room {
         LayoutRoom(corners: corners, features: features)
     }
 
-    /// The room's items, each with its spot in the chosen layout.
+    /// Every item that could go in the room (see `allItems`), each with its
+    /// spot in the chosen layout.
     var layoutItems: [LayoutItem] {
         let current = Dictionary((chosenLayout?.placements ?? []).map { ($0.itemID, $0) }, uniquingKeysWith: { a, _ in a })
-        return items
-            .sorted { $0.createdAt < $1.createdAt }
+        return allItems
             .map { item in
                 LayoutItem(
                     id: item.uuid,

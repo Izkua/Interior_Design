@@ -13,6 +13,7 @@ struct LayoutDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query private var allRooms: [Room]
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
@@ -88,6 +89,9 @@ struct LayoutDetailView: View {
                         problemsCard(problems, names: names)
                     }
                     changesCard
+                    if !sharedNotes.isEmpty {
+                        sharedCard
+                    }
                     if !missing.isEmpty {
                         missingCard
                     }
@@ -260,6 +264,62 @@ struct LayoutDetailView: View {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: Furniture shared between rooms
+
+    /// One line per piece in this layout that could also go elsewhere.
+    private struct SharedNote: Identifiable {
+        var id: UUID
+        var text: String
+        /// Set when the piece is also placed in another room's saved layout.
+        var warning: String?
+    }
+
+    private var sharedNotes: [SharedNote] {
+        let placedIDs = Set(placements.map(\.itemID))
+        return room.allItems.compactMap { item in
+            guard placedIDs.contains(item.uuid), previewItem?.id != item.uuid else { return nil }
+            let others = item.assignedRooms.filter { $0.uuid != room.uuid }
+            guard item.anyRoom || !others.isEmpty else { return nil }
+            let text = item.anyRoom
+                ? "\(item.name): not settled yet, shown in every room"
+                : "\(item.name): also in \(others.map(\.name).formatted(.list(type: .and)))"
+            // Other rooms whose saved layout already uses this piece.
+            let elsewhere = item.savedLayoutRooms(among: allRooms, excluding: room)
+            let warning = elsewhere.isEmpty ? nil
+                : "It's also in your saved layout for \(elsewhere.map(\.name).formatted(.list(type: .and))). It can only be in one place at a time."
+            return SharedNote(id: item.uuid, text: text, warning: warning)
+        }
+    }
+
+    private var sharedCard: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+                SectionHeader(title: "Shared with other rooms")
+                ForEach(sharedNotes) { note in
+                    HStack(alignment: .top, spacing: Theme.Space.sm + 4) {
+                        Image(systemName: note.warning == nil ? "arrow.left.arrow.right" : "exclamationmark.circle")
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 24)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(note.text)
+                                .font(Typography.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let warning = note.warning {
+                                Text(warning)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
         }

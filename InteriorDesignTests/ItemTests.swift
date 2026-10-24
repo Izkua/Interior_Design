@@ -75,7 +75,7 @@ final class ItemTests: XCTestCase {
         let draft = ItemDraft(item: item)
         XCTAssertEqual(draft.name, "Books")
         XCTAssertEqual(draft.notes, "Oak")
-        XCTAssertTrue(draft.room === room)
+        XCTAssertEqual(draft.rooms.map(\.uuid), [room.uuid])
     }
 
     // MARK: Furniture sizes

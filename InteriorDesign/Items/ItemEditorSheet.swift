@@ -197,20 +197,7 @@ struct ItemEditorSheet: View {
     private var detailsCard: some View {
         AppCard {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
-                HStack {
-                    Text("Room")
-                        .font(Typography.headline)
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Picker("Room", selection: $draft.room) {
-                        Text("No room").tag(Room?.none)
-                        ForEach(rooms) { room in
-                            Text(room.name).tag(Optional(room))
-                        }
-                    }
-                    .tint(Theme.accent)
-                }
-                .frame(minHeight: Theme.minTap)
+                RoomChooser(rooms: $draft.rooms, anyRoom: $draft.anyRoom, allRooms: rooms)
 
                 Toggle(isOn: $draft.isFixed) {
                     VStack(alignment: .leading, spacing: 2) {

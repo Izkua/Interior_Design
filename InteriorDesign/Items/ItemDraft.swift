@@ -13,7 +13,10 @@ struct ItemDraft {
     var notes = ""
     var isFixed = false
     var photoData: Data?
-    var room: Room?
+    /// The rooms it goes in; the first is its main room.
+    var rooms: [Room] = []
+    /// "Not sure yet": a candidate for every room.
+    var anyRoom = false
 
     /// A new item of `type`, starting at that type's usual size.
     init(type: ItemType = .sofa, room: Room? = nil) {
@@ -23,7 +26,7 @@ struct ItemDraft {
         self.widthCm = size.width
         self.depthCm = size.depth
         self.heightCm = size.height
-        self.room = room
+        self.rooms = room.map { [$0] } ?? []
     }
 
     /// The values of an item that already exists, for editing.
@@ -36,7 +39,8 @@ struct ItemDraft {
         notes = item.notes
         isFixed = item.isFixed
         photoData = item.photoData
-        room = item.room
+        rooms = item.assignedRooms
+        anyRoom = item.anyRoom
     }
 
     /// Switches the type. The size and name follow the new type only if
@@ -82,7 +86,7 @@ struct ItemDraft {
         item.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         item.isFixed = isFixed
         item.photoData = photoData
-        item.room = room
+        item.setRooms(rooms, anyRoom: anyRoom)
         item.isEstimated = false
     }
 }

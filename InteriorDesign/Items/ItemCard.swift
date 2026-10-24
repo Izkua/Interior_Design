@@ -44,9 +44,11 @@ struct ItemCard: View {
                 // Always takes the same space, tags or not, so every card
                 // in a row is the same height.
                 HStack(spacing: 6) {
+                    if let rooms = item.roomSummary { Tag(text: rooms) }
                     if item.isEstimated { Tag(text: "Estimated") }
                     if item.isFixed { Tag(text: "Fixed") }
                 }
+                .lineLimit(1)
                 .frame(height: 22, alignment: .leading)
             }
         }

@@ -310,15 +310,7 @@ struct CaptureConfirmView: View {
                 }
 
                 AppCard {
-                    HStack {
-                        Text("Room").font(Typography.headline)
-                        Spacer()
-                        Picker("Room", selection: $draft.room) {
-                            Text("No room").tag(Room?.none)
-                            ForEach(rooms) { Text($0.name).tag(Optional($0)) }
-                        }
-                        .tint(Theme.accent)
-                    }
+                    RoomChooser(rooms: $draft.rooms, anyRoom: $draft.anyRoom, allRooms: rooms)
                 }
 
                 PrimaryButton(title: "Sizes are right, save", systemImage: "checkmark") { onSave(true) }

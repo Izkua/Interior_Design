@@ -88,7 +88,14 @@ final class Item {
     var isEstimated: Bool
     var notes: String
     var createdAt: Date
+    /// The item's main room. Items saved before multi-room support have only
+    /// this, so it's kept as the first of the item's rooms.
     var room: Room?
+    /// Any more rooms the item could go in, for furniture that moves around
+    /// or hasn't found its place yet.
+    var extraRooms: [Room] = []
+    /// "Not sure yet": the item is a candidate for every room.
+    var anyRoom: Bool = false
 
     init(
         type: ItemType,
@@ -115,5 +122,54 @@ final class Item {
         self.notes = notes
         self.photoData = photoData
         self.createdAt = Date()
+    }
+}
+
+// MARK: - Rooms
+
+extension Item {
+    /// Every room the item is assigned to by name (not counting "any room").
+    var assignedRooms: [Room] {
+        var result: [Room] = []
+        for candidate in [room].compactMap({ $0 }) + extraRooms where !result.contains(where: { $0.uuid == candidate.uuid }) {
+            result.append(candidate)
+        }
+        return result
+    }
+
+    /// True if layouts for this room should include the item.
+    func belongs(to target: Room) -> Bool {
+        anyRoom || assignedRooms.contains { $0.uuid == target.uuid }
+    }
+
+    /// True when the item isn't in any room yet.
+    var isUnassigned: Bool { !anyRoom && assignedRooms.isEmpty }
+
+    /// Puts the item in these rooms: the first becomes its main room.
+    func setRooms(_ rooms: [Room], anyRoom: Bool) {
+        self.anyRoom = anyRoom
+        room = rooms.first
+        extraRooms = Array(rooms.dropFirst())
+    }
+
+    /// A short description for cards: "Living room", "2 rooms", "Any room".
+    var roomSummary: String? {
+        if anyRoom { return "Any room" }
+        switch assignedRooms.count {
+        case 0: return nil
+        case 1: return assignedRooms[0].name
+        default: return "\(assignedRooms.count) rooms"
+        }
+    }
+}
+
+extension Item {
+    /// Other rooms whose saved layout already places this item, so the
+    /// layout screen can say it can only be in one place at a time.
+    func savedLayoutRooms(among rooms: [Room], excluding current: Room) -> [Room] {
+        rooms.filter { other in
+            other.uuid != current.uuid
+                && (other.chosenLayout?.placements.contains { $0.itemID == uuid } ?? false)
+        }
     }
 }

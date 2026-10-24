@@ -148,8 +148,13 @@ final class Room {
     var createdAt: Date
     var updatedAt: Date
 
+    /// Items whose main room is this one.
     @Relationship(deleteRule: .nullify, inverse: \Item.room)
     var items: [Item] = []
+
+    /// Items that list this room as one of their extra rooms.
+    @Relationship(deleteRule: .nullify, inverse: \Item.extraRooms)
+    var sharedItems: [Item] = []
 
     @Relationship(deleteRule: .cascade, inverse: \RoomLayout.room)
     var layouts: [RoomLayout] = []
@@ -442,5 +447,20 @@ final class Room {
         adjusted.wall = target.wall
         adjusted.offsetCm = target.offset
         return fitted(adjusted)
+    }
+}
+
+extension Room {
+    /// Every item that could go in this room: its own, ones shared with
+    /// other rooms, and "any room" items. Sorted oldest first so layouts stay
+    /// in a stable order.
+    var allItems: [Item] {
+        var result: [Item] = []
+        var seen = Set<UUID>()
+        let anyRoomItems = (try? modelContext?.fetch(FetchDescriptor<Item>(predicate: #Predicate { $0.anyRoom }))) ?? []
+        for item in items + sharedItems + anyRoomItems where seen.insert(item.uuid).inserted {
+            result.append(item)
+        }
+        return result.sorted { $0.createdAt < $1.createdAt }
     }
 }
