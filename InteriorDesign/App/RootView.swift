@@ -1,10 +1,11 @@
 import SwiftUI
 import SwiftData
 
-/// The three bottom tabs, left to right.
+/// The four bottom tabs, left to right.
 enum AppTab: Hashable {
     case home
     case items
+    case layouts
     case catalog
 }
 
@@ -20,13 +21,21 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            HomeView(selectedTab: $tab, path: $homePath)
+            HomeView(path: $homePath)
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(AppTab.home)
 
             CurrentItemsView(showAddItem: $showAddItem)
                 .tabItem { Label("Current Items", systemImage: "sofa") }
                 .tag(AppTab.items)
+
+            // Its own navigation stack, so screens it opens (like the room
+            // list) slide in inside this tab.
+            NavigationStack {
+                RecommendedLayoutsView()
+            }
+            .tabItem { Label("Layouts", systemImage: "square.split.2x2") }
+            .tag(AppTab.layouts)
 
             CatalogView()
                 .tabItem { Label("Catalog", systemImage: "bag") }

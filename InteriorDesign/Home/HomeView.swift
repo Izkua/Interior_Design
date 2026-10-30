@@ -3,100 +3,96 @@ import SwiftData
 
 /// Screens Home can open. Also used by onboarding to land on the room list.
 enum HomeRoute: Hashable {
-    case layouts
     case rooms
 }
 
+/// Home shows one button per saved room, most recently edited first, so the
+/// person can jump straight back into any room.
 struct HomeView: View {
-    @Binding var selectedTab: AppTab
     /// Owned by RootView, so onboarding can open a screen here.
     @Binding var path: [HomeRoute]
 
-    @Query private var items: [Item]
+    @Environment(\.modelContext) private var context
+
     @Query(sort: \Room.updatedAt, order: .reverse) private var rooms: [Room]
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
-
-    private var itemsSubtitle: String {
-        switch items.count {
-        case 0: return "Add the furniture you already own"
-        case 1: return "1 item in your space"
-        default: return "\(items.count) items in your space"
-        }
-    }
+    /// A room just made with "New room", opened in the builder right away.
+    @State private var newRoom: Room?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.md) {
-                    if let room = rooms.first {
-                        SectionHeader(title: "Continue where you left off", actionTitle: "All rooms") {
-                            path.append(.rooms)
-                        }
-                        NavigationLink {
-                            RoomBuilderView(room: room)
-                        } label: {
-                            ContinueRoomCard(room: room, unit: unit)
-                        }
-                        .buttonStyle(PressableStyle())
-                        .padding(.bottom, Theme.Space.sm)
-                    }
-
-                    Text("What would you like to do?")
-                        .font(Typography.body)
-                        .foregroundStyle(Theme.textSecondary)
-
-                    HomeCard(
-                        title: "Current Items",
-                        subtitle: itemsSubtitle,
-                        systemImage: "sofa"
-                    ) {
-                        selectedTab = .items
-                    }
-
-                    HomeCard(
-                        title: "Shopping",
-                        subtitle: "Find pieces that fit your room and budget",
-                        systemImage: "bag"
-                    ) {
-                        selectedTab = .catalog
-                    }
-
-                    HomeCard(
-                        title: "Recommended Layouts",
-                        subtitle: "See ways to arrange your room",
-                        systemImage: "square.split.2x2"
-                    ) {
-                        path.append(.layouts)
-                    }
+            Group {
+                if rooms.isEmpty {
+                    EmptyState(
+                        systemImage: "square.dashed",
+                        title: "No rooms yet",
+                        message: "Add your room's shape and size, then place doors and windows.",
+                        actionTitle: "Create a room",
+                        action: addRoom
+                    )
+                } else {
+                    roomList
                 }
-                .padding(Theme.Space.md)
             }
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Home")
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
-                case .layouts:
-                    RecommendedLayoutsView()
                 case .rooms:
                     RoomListView()
                 }
+            }
+            .navigationDestination(item: $newRoom) { room in
+                RoomBuilderView(room: room)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { ProfileButton() }
             }
         }
     }
+
+    private var roomList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Space.md) {
+                // "Manage" opens the full list, where rooms can be renamed
+                // or deleted.
+                SectionHeader(title: "Your rooms", actionTitle: "Manage") {
+                    path.append(.rooms)
+                }
+
+                ForEach(rooms) { room in
+                    NavigationLink {
+                        RoomBuilderView(room: room)
+                    } label: {
+                        RoomButton(room: room, unit: unit, isLatest: room.id == rooms.first?.id)
+                    }
+                    .buttonStyle(PressableStyle())
+                }
+
+                NewRoomButton(action: addRoom)
+            }
+            .padding(Theme.Space.md)
+        }
+    }
+
+    private func addRoom() {
+        let room = Room(name: "Room \(rooms.count + 1)", width: 400, length: 500)
+        context.insert(room)
+        try? context.save()
+        newRoom = room
+    }
 }
 
-/// The most recently edited room, so the person can pick up where they
-/// stopped.
-private struct ContinueRoomCard: View {
+/// One saved room: its outline, name and size. The most recently edited
+/// room is marked so the person can see where they left off.
+private struct RoomButton: View {
     let room: Room
     let unit: UnitSystem
+    let isLatest: Bool
 
     var body: some View {
         AppCard {
@@ -115,6 +111,11 @@ private struct ContinueRoomCard: View {
                     Text("\(Length.format(room.width, system: unit)) × \(Length.format(room.length, system: unit))")
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textSecondary)
+                    if isLatest {
+                        Text("Last edited")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -130,45 +131,27 @@ private struct ContinueRoomCard: View {
     }
 }
 
-private struct HomeCard: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
+/// Adds a room and opens it in the builder.
+private struct NewRoomButton: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            AppCard {
-                HStack(spacing: Theme.Space.md) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 24, weight: .regular))
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 56, height: 56)
-                        .background(Theme.accent.opacity(0.12), in: Circle())
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                        Text(title)
-                            .font(Typography.headline)
-                            .foregroundStyle(Theme.textPrimary)
-                        Text(subtitle)
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                            .multilineTextAlignment(.leading)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Theme.textSecondary)
-                        .accessibilityHidden(true)
-                }
-                .frame(minHeight: 72)
+            HStack(spacing: Theme.Space.sm) {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text("New room")
+                    .font(Typography.headline)
             }
+            .foregroundStyle(Theme.accent)
+            .frame(maxWidth: .infinity, minHeight: 72)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .strokeBorder(Theme.accent.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens \(title)")
     }
 }
