@@ -1,8 +1,10 @@
 import SwiftUI
+import UIKit
 
 /// A top-down skeleton of a layout: the room, its doors and windows, and
 /// each item as a soft colored box with its name. A thicker edge marks the
-/// item's front.
+/// item's front. Pieces too small for their name get a numbered badge, and
+/// a legend along the bottom says what each number is.
 struct LayoutPlanView: View {
     let room: LayoutRoom
     let placed: [PlacedItem]
@@ -13,46 +15,156 @@ struct LayoutPlanView: View {
     var showWallLengths = true
     /// When set, the plan keeps this scale instead of fitting the room;
     /// used while dragging so the plan does not shift under the finger.
+    /// Callers that pass one should make it with `fit(_:_:size:)`.
     var space: CanvasSpace? = nil
 
     static let padding: CGFloat = 36
+    /// Room kept under the plan for the legend, when there is one.
+    static let legendHeight: CGFloat = 26
+
+    /// Fits the room to `size`, leaving a strip at the bottom for the
+    /// legend if any piece ends up with a badge.
+    static func fit(_ room: LayoutRoom, _ placed: [PlacedItem], size: CGSize) -> CanvasSpace {
+        let full = CanvasSpace(corners: room.corners, size: size, padding: padding)
+        guard PlanLabels.badged(placed, scale: full.scale).isEmpty == false else { return full }
+        let shorter = CGSize(width: size.width, height: max(size.height - legendHeight, 1))
+        return CanvasSpace(corners: room.corners, size: shorter, padding: padding)
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let space = self.space ?? CanvasSpace(corners: room.corners, size: geo.size, padding: Self.padding)
-            Canvas { context, _ in
-                RoomPlanPainter.paint(
-                    &context,
-                    corners: room.corners,
-                    features: room.features,
-                    selectedID: nil,
-                    space: space,
-                    unit: unit,
-                    showWallLengths: showWallLengths
-                )
-                // Rugs first, so everything else sits on top of them.
-                for item in placed.sorted(by: { $0.item.liesFlat && !$1.item.liesFlat }) {
-                    LayoutPlanPainter.draw(
+            let space = self.space ?? Self.fit(room, placed, size: geo.size)
+            let order = Self.drawOrder(placed)
+            let badged = PlanLabels.badged(order, scale: space.scale)
+            ZStack(alignment: .bottomLeading) {
+                Canvas { context, _ in
+                    RoomPlanPainter.paint(
                         &context,
-                        item,
+                        corners: room.corners,
+                        features: room.features,
+                        selectedID: nil,
                         space: space,
-                        selected: item.item.id == selectedID,
-                        problem: problemIDs.contains(item.item.id)
+                        unit: unit,
+                        showWallLengths: showWallLengths
                     )
+                    for item in order {
+                        LayoutPlanPainter.draw(
+                            &context,
+                            item,
+                            space: space,
+                            selected: item.item.id == selectedID,
+                            problem: problemIDs.contains(item.item.id)
+                        )
+                    }
+                    // Names last, so no box is drawn over a label.
+                    for item in order {
+                        LayoutPlanPainter.drawLabel(&context, item, space: space, badge: badged.firstIndex { $0.item.id == item.item.id }.map { $0 + 1 })
+                    }
+                }
+                if !badged.isEmpty {
+                    legend(badged)
                 }
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Floor plan with \(placed.map(\.item.name).joined(separator: ", "))")
     }
+
+    /// Rugs first, so everything else sits on top of them.
+    private static func drawOrder(_ placed: [PlacedItem]) -> [PlacedItem] {
+        placed.sorted { $0.item.liesFlat && !$1.item.liesFlat }
+    }
+
+    private func legend(_ badged: [PlacedItem]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Space.sm + 4) {
+                ForEach(Array(badged.enumerated()), id: \.element.item.id) { index, item in
+                    HStack(spacing: Theme.Space.xs) {
+                        Text("\(index + 1)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(width: PlanLabels.badgeSize, height: PlanLabels.badgeSize)
+                            .background(Circle().fill(Theme.surface))
+                            .overlay(Circle().stroke(item.item.type.planColor, lineWidth: 1.5))
+                        Text(item.item.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .padding(.horizontal, Theme.Space.sm + 4)
+        }
+        .frame(height: Self.legendHeight)
+        .padding(.bottom, Theme.Space.xs)
+    }
+}
+
+/// What goes on each piece: its name when it fits, otherwise a badge.
+/// Kept apart from the drawing so it can be tested.
+enum PlanLabels {
+    enum Label: Equatable {
+        case text(String, sideways: Bool)
+        case badge
+    }
+
+    static let fontSize: CGFloat = 10
+    static let badgeSize: CGFloat = 18
+    /// Space kept clear between a label and the edge of its box.
+    static let inset: CGFloat = 6
+    /// Height of one line of label text.
+    static let lineHeight: CGFloat = 13
+
+    /// The full name if it fits, then the kind of item ("Lamp", "Shelf"),
+    /// then a badge. Tall, thin boxes may write the name sideways.
+    static func choose(name: String, typeName: String, width: CGFloat, height: CGFloat, measure: (String) -> CGFloat) -> Label {
+        let options = name == typeName ? [name] : [name, typeName]
+        for option in options {
+            let length = measure(option)
+            if length <= width - inset && lineHeight <= height - inset / 2 {
+                return .text(option, sideways: false)
+            }
+            if height > width * 1.4 && length <= height - inset && lineHeight <= width - inset / 2 {
+                return .text(option, sideways: true)
+            }
+        }
+        return .badge
+    }
+
+    static func label(for item: PlacedItem, scale: CGFloat) -> Label {
+        let box = item.footprint
+        return choose(
+            name: item.item.name,
+            typeName: item.item.type.displayName,
+            width: CGFloat(box.maxX - box.minX) * scale,
+            height: CGFloat(box.maxY - box.minY) * scale,
+            measure: measure
+        )
+    }
+
+    /// The pieces that get a badge, in the order they are numbered.
+    static func badged(_ placed: [PlacedItem], scale: CGFloat) -> [PlacedItem] {
+        placed.filter { label(for: $0, scale: scale) == .badge }
+    }
+
+    static let font = Font.system(size: fontSize, weight: .semibold)
+    private static let uiFont = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+
+    static func measure(_ text: String) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: uiFont]).width)
+    }
 }
 
 enum LayoutPlanPainter {
-    static func draw(_ ctx: inout GraphicsContext, _ item: PlacedItem, space: CanvasSpace, selected: Bool, problem: Bool) {
+    static func rect(_ item: PlacedItem, space: CanvasSpace) -> CGRect {
         let box = item.footprint
         let topLeft = space.viewPoint(Point2D(x: box.minX, y: box.minY))
         let bottomRight = space.viewPoint(Point2D(x: box.maxX, y: box.maxY))
-        let rect = CGRect(x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
+        return CGRect(x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
+    }
+
+    static func draw(_ ctx: inout GraphicsContext, _ item: PlacedItem, space: CanvasSpace, selected: Bool, problem: Bool) {
+        let rect = rect(item, space: space)
         let color = problem ? Theme.danger : item.item.type.planColor
         let shape = Path(roundedRect: rect, cornerRadius: item.item.liesFlat ? 2 : 5)
 
@@ -77,26 +189,35 @@ enum LayoutPlanPainter {
         if selected {
             ctx.stroke(Path(roundedRect: rect.insetBy(dx: -4, dy: -4), cornerRadius: 8), with: .color(Theme.accent), lineWidth: 2)
         }
+    }
 
-        // The longest form of the name that fits: the full name, its first
-        // word, or its first letter. Tall, thin boxes write it sideways.
-        let first = item.item.name.split(separator: " ").first.map(String.init) ?? item.item.name
-        let options = [item.item.name, first, String(item.item.name.prefix(1))]
-        let sideways = rect.height > rect.width * 1.4
-        let room = (sideways ? rect.height : rect.width) - 6
-        for (index, option) in options.enumerated() {
-            let resolved = ctx.resolve(Text(option).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.textPrimary))
-            let width = resolved.measure(in: CGSize(width: 1_000, height: 30)).width
-            guard width <= room || index == options.count - 1 else { continue }
-            if sideways && width > rect.width - 6 {
-                var turned = ctx
-                turned.translateBy(x: rect.midX, y: rect.midY)
-                turned.rotate(by: .degrees(-90))
-                turned.draw(resolved, at: .zero, anchor: .center)
-            } else {
-                ctx.draw(resolved, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
-            }
-            break
+    /// The item's name, or its numbered badge when `badge` is set. A rug's
+    /// name sits near its top edge so the table on it doesn't hide it.
+    static func drawLabel(_ ctx: inout GraphicsContext, _ item: PlacedItem, space: CanvasSpace, badge: Int?) {
+        let rect = rect(item, space: space)
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+
+        if let badge {
+            let size = PlanLabels.badgeSize
+            let circle = Path(ellipseIn: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size))
+            ctx.fill(circle, with: .color(Theme.surface))
+            ctx.stroke(circle, with: .color(item.item.type.planColor), lineWidth: 1.5)
+            let number = ctx.resolve(Text("\(badge)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.textPrimary))
+            ctx.draw(number, at: center, anchor: .center)
+            return
+        }
+
+        guard case let .text(name, sideways) = PlanLabels.label(for: item, scale: space.scale) else { return }
+        let text = ctx.resolve(Text(name).font(PlanLabels.font).foregroundColor(Theme.textPrimary))
+        if sideways {
+            var turned = ctx
+            turned.translateBy(x: center.x, y: center.y)
+            turned.rotate(by: .degrees(-90))
+            turned.draw(text, at: .zero, anchor: .center)
+        } else if item.item.liesFlat {
+            ctx.draw(text, at: CGPoint(x: rect.midX, y: rect.minY + PlanLabels.inset), anchor: .top)
+        } else {
+            ctx.draw(text, at: center, anchor: .center)
         }
     }
 }

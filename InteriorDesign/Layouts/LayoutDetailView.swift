@@ -130,7 +130,7 @@ struct LayoutDetailView: View {
 
     private func plan(problemIDs: Set<UUID>) -> some View {
         GeometryReader { geo in
-            let space = frozenSpace ?? CanvasSpace(corners: room.layoutRoom.corners, size: geo.size, padding: LayoutPlanView.padding)
+            let space = frozenSpace ?? LayoutPlanView.fit(room.layoutRoom, placed, size: geo.size)
             LayoutPlanView(
                 room: room.layoutRoom,
                 placed: placed,

@@ -292,4 +292,37 @@ final class LayoutEngineTests: XCTestCase {
         XCTAssertTrue(MissingPieces.suggest(for: livingItems).isEmpty == false)
         XCTAssertFalse(MissingPieces.suggest(for: livingItems).contains { $0.name == "Coffee table" })
     }
+
+    // MARK: Plan labels
+
+    /// 6 pt per character, so sizes are easy to reason about.
+    private func label(_ name: String, _ type: String, _ w: CGFloat, _ h: CGFloat) -> PlanLabels.Label {
+        PlanLabels.choose(name: name, typeName: type, width: w, height: h) { CGFloat($0.count) * 6 }
+    }
+
+    func testPlanLabelUsesFullNameWhenItFits() {
+        XCTAssertEqual(label("Floor lamp", "Lamp", 80, 40), .text("Floor lamp", sideways: false))
+    }
+
+    func testPlanLabelFallsBackToTypeName() {
+        XCTAssertEqual(label("Floor lamp", "Lamp", 40, 40), .text("Lamp", sideways: false))
+    }
+
+    func testPlanLabelGoesSidewaysInTallThinBoxes() {
+        XCTAssertEqual(label("Bookshelf", "Shelf", 22, 90), .text("Bookshelf", sideways: true))
+    }
+
+    func testPlanLabelUsesBadgeWhenNothingFits() {
+        XCTAssertEqual(label("Floor lamp", "Lamp", 20, 20), .badge)
+        // Too short for a line of text, however wide.
+        XCTAssertEqual(label("Rug", "Rug", 200, 12), .badge)
+    }
+
+    func testPlanBadgesNumberOnlyTheSmallPieces() {
+        let sofa = PlacedItem(item: item(.sofa, "Sofa", 210, 90, 85), placement: ItemPlacement(itemID: UUID(), x: 200, y: 100, rotation: 0))
+        let lamp = PlacedItem(item: item(.lamp, "Floor lamp", 30, 30, 160), placement: ItemPlacement(itemID: UUID(), x: 50, y: 50, rotation: 0))
+        // At 0.5 pt per cm the lamp is a 15 pt box: too small for any name.
+        XCTAssertEqual(PlanLabels.badged([sofa, lamp], scale: 0.5).map(\.item.name), ["Floor lamp"])
+        XCTAssertTrue(PlanLabels.badged([sofa, lamp], scale: 3).isEmpty)
+    }
 }
