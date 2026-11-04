@@ -23,8 +23,11 @@ struct ProductDetailView: View {
     @State private var checkedFit: FitResult?
     /// Where the room's furniture stands, ready for the preview screen.
     @State private var preview: PreviewTarget?
+    /// True while the room's furniture is being arranged for the preview.
+    @State private var isPreparingPreview = false
 
-    struct PreviewTarget: Hashable {
+    struct PreviewTarget: Hashable, Identifiable {
+        var id: UUID { placement.itemID }
         var furniture: [ItemPlacement]
         var item: LayoutItem
         var placement: ItemPlacement
@@ -83,13 +86,14 @@ struct ProductDetailView: View {
                     Button {
                         Task { await openPreview(room: room, item: item, spot: spot) }
                     } label: {
-                        Label("Preview in \(room.name)", systemImage: "square.split.2x2")
+                        Label(isPreparingPreview ? "Getting the room ready…" : "Preview in \(room.name)", systemImage: "square.split.2x2")
                             .font(Typography.headline)
                             .foregroundStyle(Theme.accent)
                             .frame(maxWidth: .infinity, minHeight: 52)
                             .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                     }
                     .buttonStyle(PressableStyle())
+                    .disabled(isPreparingPreview)
                 }
 
                 if product.url != nil {
@@ -117,9 +121,22 @@ struct ProductDetailView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $preview) { target in
+        // A sheet, not a pushed screen: on iOS 26, a navigationDestination
+        // on this (already pushed) screen kept rebuilding the preview every
+        // frame and froze the app.
+        .sheet(item: $preview) { target in
             if let room {
-                LayoutDetailView(room: room, furniture: target.furniture, preview: (target.item, target.placement))
+                NavigationStack {
+                    LayoutDetailView(room: room, furniture: target.furniture, preview: (target.item, target.placement))
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { preview = nil }
+                                    .frame(minHeight: Theme.minTap)
+                            }
+                        }
+                }
+                // Dragging furniture shouldn't close the sheet.
+                .interactiveDismissDisabled()
             }
         }
         .task {
@@ -172,6 +189,9 @@ struct ProductDetailView: View {
     /// Places the room's furniture (in the background), then opens the
     /// preview.
     private func openPreview(room: Room, item: LayoutItem, spot: ItemPlacement) async {
+        guard !isPreparingPreview else { return }
+        isPreparingPreview = true
+        defer { isPreparingPreview = false }
         let snapshot = CatalogStore.RoomSnapshot(room: room.layoutRoom, items: room.layoutItems, hasChosenLayout: room.chosenLayout != nil)
         let furniture = await Task.detached { CatalogStore.furniturePlacements(snapshot).map(\.placement) }.value
         preview = PreviewTarget(

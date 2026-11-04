@@ -90,12 +90,16 @@ enum Length {
 
     /// Furniture size: "210 × 90 × 85 cm" or "83 × 35 × 33 in".
     static func formatDimensions(width: Double, depth: Double, height: Double, system: UnitSystem) -> String {
+        // Thin things (a rug is about 1 cm thick) would round to "0";
+        // show "<1" instead so it doesn't look like a missing size.
+        func whole(_ value: Double) -> String {
+            value > 0 && value < 0.5 ? "<1" : "\(Int(value.rounded()))"
+        }
         switch system {
         case .metric:
-            return "\(Int(width.rounded())) × \(Int(depth.rounded())) × \(Int(height.rounded())) cm"
+            return "\(whole(width)) × \(whole(depth)) × \(whole(height)) cm"
         case .imperial:
-            func inches(_ cm: Double) -> Int { Int((cm / cmPerInch).rounded()) }
-            return "\(inches(width)) × \(inches(depth)) × \(inches(height)) in"
+            return "\(whole(width / cmPerInch)) × \(whole(depth / cmPerInch)) × \(whole(height / cmPerInch)) in"
         }
     }
 

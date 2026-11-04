@@ -457,7 +457,12 @@ extension Room {
     var allItems: [Item] {
         var result: [Item] = []
         var seen = Set<UUID>()
-        let anyRoomItems = (try? modelContext?.fetch(FetchDescriptor<Item>(predicate: #Predicate { $0.anyRoom }))) ?? []
+        // Read only what's saved: including unsaved changes makes SwiftData
+        // announce them, which redraws the screen that's asking, which asks
+        // again. (The app saves after every edit, so nothing is missed.)
+        var anyRoom = FetchDescriptor<Item>(predicate: #Predicate { $0.anyRoom })
+        anyRoom.includePendingChanges = false
+        let anyRoomItems = (try? modelContext?.fetch(anyRoom)) ?? []
         for item in items + sharedItems + anyRoomItems where seen.insert(item.uuid).inserted {
             result.append(item)
         }

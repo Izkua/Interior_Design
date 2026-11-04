@@ -35,4 +35,11 @@ final class LengthTests: XCTestCase {
     func testRejectsZero() {
         XCTAssertNil(Length.parse("0", system: .metric))
     }
+
+    func testThinThingsDontShowZero() {
+        // A rug about 1 cm thick.
+        XCTAssertEqual(Length.formatDimensions(width: 69, depth: 117, height: 1, system: .imperial), "27 × 46 × <1 in")
+        XCTAssertEqual(Length.formatDimensions(width: 69, depth: 117, height: 0.3, system: .metric), "69 × 117 × <1 cm")
+        XCTAssertEqual(Length.formatDimensions(width: 100, depth: 50, height: 80, system: .metric), "100 × 50 × 80 cm")
+    }
 }

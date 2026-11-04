@@ -24,10 +24,13 @@ struct LayoutDetailView: View {
     @State private var frozenSpace: CanvasSpace?
     @State private var confirmProblems = false
 
-    private let items: [LayoutItem]
-    private let rules: LayoutRules
     /// A product being tried out, in preview mode.
     private let previewItem: LayoutItem?
+    /// The slow-to-build parts, made once per screen (see `DetailCache`).
+    @State private var cache: DetailCache
+
+    private var items: [LayoutItem] { cache.items }
+    private var rules: LayoutRules { cache.rules }
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -35,9 +38,8 @@ struct LayoutDetailView: View {
         self.room = room
         self.suggestion = suggestion
         self.missing = missing
-        items = room.layoutItems
-        rules = LayoutRules(room: room.layoutRoom)
         previewItem = nil
+        _cache = State(initialValue: DetailCache(room: room, extra: nil))
         _placements = State(initialValue: suggestion.placements)
     }
 
@@ -48,9 +50,8 @@ struct LayoutDetailView: View {
         self.room = room
         self.suggestion = LayoutSuggestion(label: "Preview", placements: placements + [preview.placement], leftOut: [], score: 0, breakdown: LayoutScore())
         self.missing = []
-        items = room.layoutItems + [preview.item]
-        rules = LayoutRules(room: room.layoutRoom)
         previewItem = preview.item
+        _cache = State(initialValue: DetailCache(room: room, extra: preview.item))
         _placements = State(initialValue: placements + [preview.placement])
     }
 
@@ -66,7 +67,7 @@ struct LayoutDetailView: View {
 
     var body: some View {
         // Worked out once per redraw and shared below.
-        let problems = rules.problems(in: placed)
+        let problems = cache.problems(in: placed, placements: placements)
         let names = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.name) })
 
         VStack(spacing: 0) {
@@ -362,5 +363,39 @@ struct LayoutDetailView: View {
             context: context
         )
         dismiss()
+    }
+}
+
+/// The parts of the layout screen that are slow to work out: the room's
+/// items, the rules (which build a grid over the floor), and the rule check.
+///
+/// SwiftUI rebuilds a screen's struct whenever the screen above it redraws,
+/// which can be every frame. Doing this work in `init` made the preview
+/// freeze on slower phones, so it's done lazily, once, and the check is only
+/// redone when something moved. `@State` keeps the first copy; later copies
+/// are thrown away before doing any work.
+@MainActor
+final class DetailCache {
+    private let room: Room
+    private let extra: LayoutItem?
+
+    init(room: Room, extra: LayoutItem?) {
+        self.room = room
+        self.extra = extra
+    }
+
+    private(set) lazy var items: [LayoutItem] = room.layoutItems + (extra.map { [$0] } ?? [])
+    private(set) lazy var rules = LayoutRules(room: room.layoutRoom)
+
+    private var checked: [ItemPlacement]?
+    private var lastProblems: [LayoutProblem] = []
+
+    /// The rule check for these placements, reused while nothing moves.
+    func problems(in placed: [PlacedItem], placements: [ItemPlacement]) -> [LayoutProblem] {
+        if checked != placements {
+            lastProblems = rules.problems(in: placed)
+            checked = placements
+        }
+        return lastProblems
     }
 }
