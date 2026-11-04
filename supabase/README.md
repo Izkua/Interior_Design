@@ -62,20 +62,49 @@ a secret into chat or into a file.
 
 After step 5 the Catalog tab shows live products instead of the samples.
 
-## Google sign-in (later)
+## Google sign-in
 
-1. In Google Cloud Console: create a project, set up the OAuth consent screen
-   (basic profile and email only), and create an OAuth client ID of type
-   **Web application** with the redirect URI
-   `https://tpansxzplscfoffsscqn.supabase.co/auth/v1/callback`.
-2. In Supabase: **Authentication → Sign In / Providers → Google**: enable it
-   and paste the client ID and client secret there.
-3. Set `googleSignInEnabled = true` in `InteriorDesign/Shared/Backend/BackendConfig.swift`.
+Free. The app opens Google in Apple's secure browser sheet (with PKCE), then
+Supabase signs the person in. The Google **client secret goes only into the
+Supabase dashboard**: never into the app, a file, or a chat.
 
-## Sign in with Apple (after the Apple Developer account)
+1. **Google Cloud project.** Go to console.cloud.google.com, sign in with your
+   Google account, and create a project (top bar → project picker → New
+   project), e.g. "Interior Design".
+2. **Consent screen.** Menu → **Google Auth Platform** (or "APIs & Services →
+   OAuth consent screen") → Get started. App name: your app's name; support
+   email: yours; Audience: **External**; contact email: yours. Finish.
+   - Data access / scopes: keep the basic ones (`openid`, `email`,
+     `profile`). Add nothing else, so Google needs no review.
+   - Audience: while it says **Testing**, only "test users" can sign in. Add
+     your own Gmail (and any testers) under Test users.
+3. **Client ID.** Google Auth Platform → **Clients** → Create client →
+   Application type **Web application** (yes, web, even for an iPhone app:
+   Supabase does the Google part) → under **Authorized redirect URIs** add
+   `https://tpansxzplscfoffsscqn.supabase.co/auth/v1/callback` → Create. A box
+   shows the **Client ID** and **Client secret**. Keep that tab open.
+4. **Supabase.** Authentication → Sign In / Providers → **Google** → enable,
+   paste the Client ID into **Client IDs** and the secret into **Client
+   Secret (for OAuth)** → Save.
+5. **Redirect URL.** Authentication → **URL Configuration** → Redirect URLs:
+   make sure `interiordesign://auth-callback` is listed (add it if not).
 
-Needs the paid account to create a Services ID and key. Then enable the
-Apple provider in Supabase and set `appleSignInEnabled = true`.
+Before the App Store: publish the consent screen (Audience → Publish app) so
+anyone can sign in, not just test users.
+
+## Sign in with Apple
+
+The app uses Apple's native sign-in sheet (no web page), so no Services ID or
+secret key is needed. The app already has the capability and
+`appleSignInEnabled = true`.
+
+In Supabase: **Authentication → Sign In / Providers → Apple** → enable it,
+put `com.isabellasi.InteriorDesign` under **Client IDs**, leave the secret
+key empty, and save.
+
+Follow-up before the App Store: when an Apple user deletes their account,
+Apple asks apps to also revoke the Apple sign-in. That needs a private key
+from the Apple Developer site stored as a Supabase secret; not done yet.
 
 ## Testing locally
 

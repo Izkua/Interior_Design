@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// A signed-in session from Supabase Auth.
 struct AuthSession: Codable, Equatable, Sendable {
@@ -90,18 +91,96 @@ struct AuthClient: Sendable {
         _ = try await send("user", method: "PUT", body: ["password": password], bearer: accessToken)
     }
 
-    // MARK: Google and Apple (browser sign-in)
+    // MARK: Sign in with Apple (native)
 
-    /// The page that starts Google or Apple sign-in in a browser sheet.
-    /// Supabase sends the person back to `callbackURL` with the session in
-    /// the address.
-    func authorizeURL(provider: String) -> URL {
+    /// The request that trades Apple's identity token for a Supabase
+    /// session. Kept separate so it can be tested.
+    static func idTokenBody(provider: String, idToken: String, nonce: String) -> [String: String] {
+        ["provider": provider, "id_token": idToken, "nonce": nonce]
+    }
+
+    func signIn(apple result: AppleSignIn.Result) async throws -> AuthSession {
+        let data = try await post(
+            "token",
+            body: Self.idTokenBody(provider: "apple", idToken: result.identityToken, nonce: result.nonce),
+            query: ["grant_type": "id_token"]
+        )
+        return try Self.decodeSession(data)
+    }
+
+    /// Saves a name to the account (Apple only shares it once).
+    func saveName(_ name: String, accessToken: String) async throws {
+        _ = try await send("user", method: "PUT", body: NameUpdate(data: .init(full_name: name)), bearer: accessToken)
+    }
+
+    private struct NameUpdate: Encodable {
+        struct Fields: Encodable { var full_name: String }
+        var data: Fields
+    }
+
+    // MARK: Google (browser sign-in with PKCE)
+
+    /// PKCE ("pixie"): the app makes a secret `verifier` and sends only its
+    /// hash (the `challenge`) when sign-in starts. Google and Supabase send
+    /// back a one-time code, and only the app holding the verifier can
+    /// trade it for a session. So a code caught on the way is useless.
+    struct PKCE: Equatable, Sendable {
+        var verifier: String
+        var challenge: String
+
+        static func make() -> PKCE {
+            var bytes = [UInt8](repeating: 0, count: 32)
+            var generator = SystemRandomNumberGenerator()
+            for i in bytes.indices { bytes[i] = UInt8.random(in: 0...255, using: &generator) }
+            let verifier = base64URL(Data(bytes))
+            return PKCE(verifier: verifier, challenge: challenge(for: verifier))
+        }
+
+        /// base64url(SHA-256(verifier)), without "=" padding.
+        static func challenge(for verifier: String) -> String {
+            base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
+        }
+
+        static func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+        }
+    }
+
+    /// The page that starts Google sign-in in a browser sheet. Supabase
+    /// sends the person back to `callbackURL` with a one-time `code`.
+    func authorizeURL(provider: String, pkce: PKCE) -> URL {
         var components = URLComponents(url: BackendConfig.authURL.appendingPathComponent("authorize"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "provider", value: provider),
             URLQueryItem(name: "redirect_to", value: BackendConfig.callbackURL.absoluteString),
+            URLQueryItem(name: "code_challenge", value: pkce.challenge),
+            URLQueryItem(name: "code_challenge_method", value: "s256"),
         ]
         return components.url!
+    }
+
+    /// The one-time code in interiordesign://auth-callback?code=...
+    /// Throws the provider's message if sign-in was refused.
+    static func code(fromCallback url: URL) throws -> String {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let fragmentItems = URLComponents(string: "x:?" + (url.fragment ?? ""))?.queryItems ?? []
+        let all = items + fragmentItems
+        if let message = all.first(where: { $0.name == "error_description" })?.value {
+            throw AuthError.server(message.replacingOccurrences(of: "+", with: " "))
+        }
+        guard let code = all.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
+            throw AuthError.server("Sign-in didn't finish. Please try again.")
+        }
+        return code
+    }
+
+    /// Trades the one-time code (plus the verifier) for a session.
+    func session(code: String, verifier: String) async throws -> AuthSession {
+        let data = try await post("token", body: ["auth_code": code, "code_verifier": verifier], query: ["grant_type": "pkce"])
+        return try Self.decodeSession(data)
     }
 
     /// Reads the session out of the callback address
@@ -136,7 +215,7 @@ struct AuthClient: Sendable {
         try await send(path, method: "POST", body: body, query: query, bearer: bearer)
     }
 
-    private func send(_ path: String, method: String, body: [String: String]?, query: [String: String] = [:], bearer: String? = nil) async throws -> Data {
+    private func send(_ path: String, method: String, body: (any Encodable)?, query: [String: String] = [:], bearer: String? = nil) async throws -> Data {
         var components = URLComponents(url: BackendConfig.authURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty {
             components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }

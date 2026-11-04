@@ -1,9 +1,13 @@
 import SwiftUI
 import UIKit
+import AuthenticationServices
 
 /// Sign in or create an account. Optional: everything works as a guest.
 struct SignInView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    /// The one-time code for the current Sign in with Apple attempt.
+    @State private var appleNonce = ""
     @State private var auth = AuthStore.shared
 
     private enum Mode: String, CaseIterable {
@@ -104,14 +108,69 @@ struct SignInView: View {
     /// Same size and prominence for both, as Apple asks.
     private var providerButtons: some View {
         VStack(spacing: Theme.Space.sm) {
-            providerButton("Continue with Apple", symbol: "apple.logo", enabled: BackendConfig.appleSignInEnabled, provider: "apple")
-            providerButton("Continue with Google", symbol: "g.circle", enabled: BackendConfig.googleSignInEnabled, provider: "google")
-            if !BackendConfig.appleSignInEnabled || !BackendConfig.googleSignInEnabled {
-                Text("Apple and Google sign-in are coming soon. Email works now.")
+            if BackendConfig.appleSignInEnabled {
+                appleButton
+            } else {
+                providerButton("Continue with Apple", symbol: "apple.logo", enabled: false, provider: "apple")
+            }
+            if BackendConfig.googleSignInEnabled {
+                googleButton
+            } else {
+                providerButton("Continue with Google", symbol: "g.circle", enabled: false, provider: "google")
+                Text("Google sign-in is coming soon.")
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
+    }
+
+    /// Apple's own button: black in light mode, white in dark mode.
+    private var appleButton: some View {
+        SignInWithAppleButton(.continue) { request in
+            appleNonce = AppleSignIn.makeNonce()
+            AppleSignIn.configure(request, nonce: appleNonce)
+        } onCompletion: { outcome in
+            Task {
+                await run {
+                    let result = try AppleSignIn.result(from: outcome, nonce: appleNonce)
+                    try await auth.signIn(apple: result)
+                    dismiss()
+                }
+            }
+        }
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+        .frame(height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+        .disabled(isWorking)
+        // Changing style needs a fresh button.
+        .id(colorScheme)
+    }
+
+    /// Google's "neutral" button style: white with a grey border in light
+    /// mode, near-black in dark mode, same size as Apple's.
+    private var googleButton: some View {
+        let dark = colorScheme == .dark
+        return Button {
+            Task { await signIn(with: "google") }
+        } label: {
+            HStack(spacing: 10) {
+                Text("G")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
+                    .accessibilityHidden(true)
+                Text("Continue with Google")
+                    .font(.system(size: 19, weight: .medium))
+            }
+            .foregroundStyle(dark ? Color(red: 0.89, green: 0.89, blue: 0.89) : Color(red: 0.12, green: 0.12, blue: 0.12))
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(dark ? Color(red: 0.075, green: 0.075, blue: 0.08) : .white,
+                        in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                .strokeBorder(dark ? Color(red: 0.56, green: 0.57, blue: 0.56) : Color(red: 0.45, green: 0.47, blue: 0.46), lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(isWorking)
+        .accessibilityLabel("Continue with Google")
     }
 
     private func providerButton(_ title: String, symbol: String, enabled: Bool, provider: String) -> some View {
@@ -183,6 +242,8 @@ struct SignInView: View {
         defer { isWorking = false }
         do {
             try await work()
+        } catch AuthError.cancelled {
+            // Closed the Apple sheet: nothing to say.
         } catch let error as AuthError {
             errorMessage = error.errorDescription
         } catch {

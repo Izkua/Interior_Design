@@ -23,11 +23,12 @@ enum BackendConfig {
     static let callbackScheme = "interiordesign"
     static let callbackURL = URL(string: "interiordesign://auth-callback")!
 
-    /// Google sign-in stays off until the Google Cloud and Supabase setup
-    /// is done (see supabase/README.md).
-    static let googleSignInEnabled = false
-    /// Sign in with Apple needs the paid Apple Developer account.
-    static let appleSignInEnabled = false
+    /// Google sign-in (browser sheet with PKCE). Also needs the Google
+    /// Cloud and Supabase setup in supabase/README.md.
+    static let googleSignInEnabled = true
+    /// Sign in with Apple (native sheet). Also needs the Apple provider
+    /// turned on in Supabase (see supabase/README.md).
+    static let appleSignInEnabled = true
 
     // Paid AI features (week 5). Each stays off until a model is chosen and
     // the matching switch in Supabase's app_config is turned on too.

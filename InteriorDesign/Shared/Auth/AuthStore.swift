@@ -47,11 +47,40 @@ final class AuthStore {
         try await client.resetPassword(email: Self.clean(email))
     }
 
-    /// Google (and, later, Apple) sign-in in a secure browser sheet.
+    /// Finishes Sign in with Apple: trades Apple's token for a session.
+    /// Apple only shares the name the very first time, so it's saved to
+    /// the account (and the profile) right away.
+    func signIn(apple result: AppleSignIn.Result) async throws {
+        var session = try await client.signIn(apple: result)
+        if let name = result.name, session.user.name == nil {
+            try? await client.saveName(name, accessToken: session.accessToken)
+            try? await saveProfileName(name, session: session)
+            session.user.name = name
+        }
+        store(session)
+    }
+
+    /// The profile row was made when the account was created, before the
+    /// name was known, so fill it in.
+    private func saveProfileName(_ name: String, session: AuthSession) async throws {
+        var components = URLComponents(url: BackendConfig.restURL.appendingPathComponent("profiles"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "id", value: "eq.\(session.user.id)")]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "PATCH"
+        request.setValue(BackendConfig.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["display_name": name])
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    /// Google sign-in in a secure browser sheet, using PKCE.
     func signIn(with provider: String, from anchor: ASPresentationAnchor) async throws {
-        let url = client.authorizeURL(provider: provider)
+        let pkce = AuthClient.PKCE.make()
+        let url = client.authorizeURL(provider: provider, pkce: pkce)
         let callback = try await WebAuth.start(url: url, callbackScheme: BackendConfig.callbackScheme, anchor: anchor)
-        store(try await client.session(fromCallback: callback))
+        let code = try AuthClient.code(fromCallback: callback)
+        store(try await client.session(code: code, verifier: pkce.verifier))
     }
 
     /// Handles links that open the app, like the email confirmation.
