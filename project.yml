@@ -1,8 +1,8 @@
 name: InteriorDesign
 
 options:
-  # Change this to your own reverse-domain prefix before you run on a phone.
-  bundleIdPrefix: com.example
+  # Your own reverse-domain prefix. Bundle IDs must be unique across all apps.
+  bundleIdPrefix: com.isabellasi
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -20,15 +20,21 @@ targets:
       - path: InteriorDesign
         excludes:
           - Info.plist
+          - InteriorDesign.entitlements
+    # Sign in with Apple. Xcode's automatic signing adds it to the App ID.
+    entitlements:
+      path: InteriorDesign/InteriorDesign.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.InteriorDesign
+        PRODUCT_BUNDLE_IDENTIFIER: com.isabellasi.InteriorDesign
         # Extra Info.plist keys Xcode can't generate (the interiordesign://
         # link used by sign-in); merged with the generated ones.
         INFOPLIST_FILE: InteriorDesign/Info.plist
         PRODUCT_NAME: InteriorDesign
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "3"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: YES
@@ -42,8 +48,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
-        # Set your Apple Developer team in Xcode (Signing & Capabilities) or here.
-        DEVELOPMENT_TEAM: ""
+        # Your Apple Developer Program team (Individual). Same ID as the
+        # free Personal Team you used before enrolling.
+        DEVELOPMENT_TEAM: 62YVXX9LJG
         ENABLE_PREVIEWS: YES
 
   InteriorDesignTests:
@@ -55,7 +62,7 @@ targets:
       - target: InteriorDesign
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.InteriorDesignTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.isabellasi.InteriorDesignTests
         GENERATE_INFOPLIST_FILE: YES
 
 schemes:

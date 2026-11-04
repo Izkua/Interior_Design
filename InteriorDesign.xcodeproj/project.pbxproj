@@ -24,6 +24,7 @@
 		386151B4058B0EECCD2E0315 /* ScanRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02869669093B927D93D4B7D2 /* ScanRoomView.swift */; };
 		3C710F9853830DDB51D641D5 /* CatalogSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2670912C2727C336C3C921BD /* CatalogSheets.swift */; };
 		3CA343A3794EAF6529DD0737 /* CaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8E5FA065BAC046DB6BC309 /* CaptureTests.swift */; };
+		3CB6F2E3EBCE9522AA5189FB /* PreviewScreenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52E5FCE2EDC950E2EF0C608 /* PreviewScreenTests.swift */; };
 		3D1F5875730DDDF970C681ED /* CatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E32DC643635CF1DC06937AFA /* CatalogTests.swift */; };
 		3DAED450CB33274F07CA3A84 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 931929CDE4E0F9A8C8C7A9F7 /* Item.swift */; };
 		44E48D3A80DF14128233126F /* RoomPlanScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3DC9501DD60C7129F823F63 /* RoomPlanScan.swift */; };
@@ -44,6 +45,7 @@
 		767ECB40E647A775104C209A /* ReferenceMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */; };
 		8337B70C282BDC2CBA15AF95 /* VisualizeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1DA46AA4EBA27A44A7825C /* VisualizeService.swift */; };
 		8F7F40E4ABAEF05846A22866 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE9CD3CDFB7E2C5235C648C /* RootView.swift */; };
+		9243E36D2A517EE47A51B163 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD3A750F54CDC31126F86494 /* AppleSignIn.swift */; };
 		9317725393385662AB5F4594 /* ReferenceScale.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23436AC891BD40FB3136369 /* ReferenceScale.swift */; };
 		97598CAB876D8A502B747E69 /* CameraAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E4409AB17598462D7EC8660 /* CameraAccess.swift */; };
 		999623945F0CCF6674A6311B /* CurrentItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B117F6928C4FE22AF827292 /* CurrentItemsView.swift */; };
@@ -157,6 +159,7 @@
 		99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizeTests.swift; sourceTree = "<group>"; };
 		9A1B71704FC92D14F24CD40B /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		A495AEA4C32A00097F84C75A /* ProductDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDetailView.swift; sourceTree = "<group>"; };
+		A52E5FCE2EDC950E2EF0C608 /* PreviewScreenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewScreenTests.swift; sourceTree = "<group>"; };
 		ABE9CD3CDFB7E2C5235C648C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AC57A5B40410279775B7BA10 /* CaptureFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFlowView.swift; sourceTree = "<group>"; };
 		B3DC9501DD60C7129F823F63 /* RoomPlanScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanScan.swift; sourceTree = "<group>"; };
@@ -172,6 +175,7 @@
 		D603313E54702DADE22B147C /* CatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogService.swift; sourceTree = "<group>"; };
 		D745688DA2C311BE2B7AD766 /* ItemCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemCard.swift; sourceTree = "<group>"; };
 		DB9D0E97ECF25FCA16962A65 /* LayoutRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutRules.swift; sourceTree = "<group>"; };
+		DD3A750F54CDC31126F86494 /* AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
 		DD835EC463E9043DD1843088 /* Units.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Units.swift; sourceTree = "<group>"; };
 		DDBEA0E8AA4A51A4C00D7854 /* ProfileButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileButton.swift; sourceTree = "<group>"; };
 		E32DC643635CF1DC06937AFA /* CatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTests.swift; sourceTree = "<group>"; };
@@ -207,6 +211,7 @@
 				C77706A64E0EF6F19D997B85 /* MultiRoomTests.swift */,
 				2ABCA8854F01D3BF2038FD68 /* PersistenceTests.swift */,
 				1E035D4AF13A1661FD61EFE6 /* PolygonGeometryTests.swift */,
+				A52E5FCE2EDC950E2EF0C608 /* PreviewScreenTests.swift */,
 				7EA5285F9B48471BD8C45D67 /* RoomScanTests.swift */,
 				CFB69EAF85D05B057981F430 /* RoomTests.swift */,
 				902916444206D959FD512890 /* StressTests.swift */,
@@ -277,6 +282,7 @@
 		6D1DD8F5F5F5D508AA5C345E /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				DD3A750F54CDC31126F86494 /* AppleSignIn.swift */,
 				587C972790966FDA8D6D5D92 /* AuthClient.swift */,
 				70740B88171B3C8000609C38 /* AuthStore.swift */,
 				FA33AF838FF1A63F098C4DF4 /* Keychain.swift */,
@@ -474,7 +480,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					37DB9C41D1FC87E17B609022 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = 62YVXX9LJG;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -527,6 +533,7 @@
 				F72B84845E64D4BCC4704AAA /* MultiRoomTests.swift in Sources */,
 				D2C9F1C97823238661E26DFA /* PersistenceTests.swift in Sources */,
 				5346EB62DFEBCCE63543B6A1 /* PolygonGeometryTests.swift in Sources */,
+				3CB6F2E3EBCE9522AA5189FB /* PreviewScreenTests.swift in Sources */,
 				6DE584F77CE6EADAA4D5FAEE /* RoomScanTests.swift in Sources */,
 				E683DD35ED95B8B79B4DDBD6 /* RoomTests.swift in Sources */,
 				68C8E2991F42F7C6788597D1 /* StressTests.swift in Sources */,
@@ -540,6 +547,7 @@
 			files = (
 				F314DA495D855B40801909F0 /* ARMeasureView.swift in Sources */,
 				AF2C4A7F1576869D3209763C /* AdvancedRoomCanvas.swift in Sources */,
+				9243E36D2A517EE47A51B163 /* AppleSignIn.swift in Sources */,
 				E0BA3F070738A752CA91DE9E /* AuthClient.swift in Sources */,
 				F9D1F0639D0B0D1B11DEC9BE /* AuthStore.swift in Sources */,
 				BB6EF790A5F341E8318E63C0 /* BackendConfig.swift in Sources */,
@@ -625,7 +633,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesignTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isabellasi.InteriorDesignTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InteriorDesign.app/InteriorDesign";
@@ -642,7 +650,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesignTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isabellasi.InteriorDesignTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InteriorDesign.app/InteriorDesign";
@@ -717,10 +725,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InteriorDesign/Info.plist;
@@ -735,7 +744,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesign;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isabellasi.InteriorDesign;
 				PRODUCT_NAME = InteriorDesign;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -748,10 +757,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InteriorDesign/Info.plist;
@@ -766,7 +776,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.InteriorDesign;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isabellasi.InteriorDesign;
 				PRODUCT_NAME = InteriorDesign;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;

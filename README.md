@@ -4,7 +4,7 @@ An iPhone app for measuring your room, tracking what you own, and (later) planni
 
 ## Status: Weeks 1–6 built (simulator); backend not deployed, no AI model chosen yet
 
-- Tabs: Home, Current Items, Catalog
+- Tabs: Home, Current Items, Layouts, Catalog
 - Profile button (top right) opening a guest sheet; sign-in is not wired up yet
 - Room builder, Basic: rectangle or square, width/length in feet/inches or metric, a to-scale plan with wall lengths, draggable doors, windows, and outlets, rename/delete, multiple rooms
 - Room builder, Advanced: any shape on a grid. Tap to add a corner, drag to move, long-press to delete; live wall lengths and angles; "Lock angles" snaps to 30/45/60/90° (and 120–180°); undo/redo; tap a wall to type its measured length, with a warning that names the wall that doesn't fit when measurements disagree
@@ -21,13 +21,13 @@ An iPhone app for measuring your room, tracking what you own, and (later) planni
 - Debug builds: Profile → Developer → "Demo AI features" fakes scan and image results for trying the screens for free
 - Everything saves on the device with SwiftData
 
-> Builds and passes its unit tests on the iPhone simulator (Xcode 27.1). Until you set a development team in `project.yml`, it runs in the simulator only.
+> Builds and passes its unit tests on the iPhone simulator (Xcode 27.1). Signed with your Apple Developer Program team, so it also runs on your own iPhone.
 
 ## Set up
 
 1. Install Xcode (from the App Store) and XcodeGen: `brew install xcodegen`
 2. From this folder run `xcodegen` to create `InteriorDesign.xcodeproj`
-3. Open the project. Under Signing & Capabilities pick your team and change the bundle identifier from `com.example.InteriorDesign`
+3. Open the project. Under Signing & Capabilities pick your team (the free "Personal Team" works for your own iPhone). The bundle identifier is `com.isabellasi.InteriorDesign`
 4. Run on a simulator or your iPhone
 
 **If XcodeGen gives you trouble:** in Xcode choose File > New > Project > iOS App (SwiftUI, SwiftData storage off), then drag the `InteriorDesign` and `InteriorDesignTests` folders in, deleting the template files.
