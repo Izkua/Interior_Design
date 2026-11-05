@@ -57,13 +57,16 @@ struct CaptureFlowView: View {
             .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $showAR) {
-            ARMeasureView(start: (draft.widthCm, draft.depthCm, draft.heightCm)) { w, d, h in
+            ARMeasureView(start: (draft.widthCm, draft.depthCm, draft.heightCm), onDone: { w, d, h in
                 draft.widthCm = w.rounded()
                 draft.depthCm = d.rounded()
                 draft.heightCm = h.rounded()
                 method = .ar
                 path.append(.confirm)
-            }
+            }, onTypeInstead: {
+                method = .typical
+                path.append(.confirm)
+            })
         }
         .onChange(of: photoSelection) { _, selection in
             guard let selection else { return }
@@ -179,6 +182,10 @@ struct CaptureFlowView: View {
                 }
                 option("Use something in the photo", "Tap a credit card, paper, or door in the photo, then the furniture.", "creditcard") {
                     path.append(.reference)
+                }
+                option("Type the sizes", "Already measured it with a tape? Enter width, depth, and height.", "keyboard") {
+                    method = .typical
+                    path.append(.confirm)
                 }
                 option("Use a typical size", label == nil ? "Start from a typical size and adjust it." : "Start from the usual size for a \(draft.type.displayName.lowercased()) and adjust it.", "square.dashed") {
                     method = .typical
