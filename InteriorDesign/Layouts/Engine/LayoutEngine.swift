@@ -21,10 +21,13 @@ struct LayoutScore: Sendable {
     var facing = 0.0
     var outlets = 0.0
     var fewMoves = 0.0
+    /// Pieces that belong together sit together (see `LayoutEngine.grouping`).
+    var grouping = 0.0
 
-    /// Weights add to 100. Fitting everything matters most.
+    /// Weights add to 100. Fitting everything matters most, then keeping
+    /// the seating group together.
     var total: Double {
-        placed * 40 + walkability * 15 + balance * 10 + facing * 15 + outlets * 10 + fewMoves * 10
+        placed * 35 + walkability * 10 + balance * 5 + facing * 10 + outlets * 5 + fewMoves * 10 + grouping * 25
     }
 }
 
@@ -37,6 +40,10 @@ struct LayoutScore: Sendable {
 ///    with a little randomness, so the candidates differ.
 /// 2. Throw out any spot that breaks a hard rule (see `LayoutRules`).
 /// 3. Score every candidate and keep the best few that really differ.
+///
+/// Pieces that belong together are offered spots together: the coffee
+/// table in front of the sofa, armchairs beside it facing in, a floor lamp
+/// at the end of a seat. Anywhere else is only a fallback.
 enum LayoutEngine {
     struct Options: Sendable {
         var seed: UInt64 = 42
@@ -71,14 +78,19 @@ enum LayoutEngine {
 
         // Where things are now is an option too, if it still follows the
         // rules, so the person can see how it compares.
+        var current: LayoutSuggestion?
         if items.allSatisfy({ $0.current != nil }) {
-            let current = items.map { PlacedItem(item: $0, placement: $0.current!) }
-            if rules.problems(in: current).isEmpty {
-                candidates.append(score(current, items: items, rules: rules))
+            let placed = items.map { PlacedItem(item: $0, placement: $0.current!) }
+            if rules.problems(in: placed).isEmpty {
+                current = score(placed, items: items, rules: rules)
+                candidates.append(current!)
             }
         }
 
-        let picked = pickDistinct(candidates.sorted { $0.score > $1.score }, count: options.maxResults)
+        var picked = pickDistinct(candidates.sorted { $0.score > $1.score }, count: options.maxResults)
+        if let current {
+            keep(current, in: &picked, count: options.maxResults)
+        }
         return label(picked, items: items, rules: rules)
     }
 
@@ -106,8 +118,9 @@ enum LayoutEngine {
             .sorted { $0.1 < $1.1 }
             .map(\.0)
 
-        for item in order {
-            let options = spots(for: item, placed: placed, rules: rules)
+        for (index, item) in order.enumerated() {
+            let toCome = Array(order[(index + 1)...])
+            let options = spots(for: item, placed: placed, toCome: toCome, rules: rules)
                 .filter { rules.quickProblems($0.0, among: placed).isEmpty }
                 .map { ($0.0, $0.1 + Double.random(in: 0..<2.5, using: &rng) * jitter) }
                 .sorted { $0.1 > $1.1 }
@@ -128,40 +141,177 @@ enum LayoutEngine {
     /// The best spot for one more item among furniture that stays put, or
     /// nil if there is none. Used by the catalog's "does it fit?" check.
     static func findSpot(for item: LayoutItem, among placed: [PlacedItem], rules: LayoutRules) -> PlacedItem? {
-        let options = spots(for: item, placed: placed, rules: rules)
+        let options = spots(for: item, placed: placed, toCome: [], rules: rules)
             .filter { rules.quickProblems($0.0, among: placed).isEmpty }
             .sorted { $0.1 > $1.1 }
         // Unlike building a layout, try every spot: a "no" must be sure.
         return options.first { rules.unreachableItems(in: placed + [$0.0]).isEmpty }?.0
     }
 
+    /// How much worse a fallback spot scores than a preferred one, so it
+    /// is only used when no preferred spot follows the rules.
+    private static let fallbackPenalty = 20.0
+
     /// Spots worth trying for an item, each with a "how good is this
-    /// spot" number (higher is better).
-    private static func spots(for item: LayoutItem, placed: [PlacedItem], rules: LayoutRules) -> [(PlacedItem, Double)] {
-        var result: [PlacedItem] = []
+    /// spot" number (higher is better). `toCome` are the items still to
+    /// place, so a sofa can leave room for its coffee table and armchairs.
+    private static func spots(for item: LayoutItem, placed: [PlacedItem], toCome: [LayoutItem], rules: LayoutRules) -> [(PlacedItem, Double)] {
+        var preferred: [PlacedItem] = []
 
         if item.type.wantsWall {
-            result += wallSpots(for: item, rules: rules)
+            preferred += wallSpots(for: item, rules: rules)
         }
-        if item.isCoffeeTable, let sofa = placed.first(where: { $0.item.type == .sofa }) {
-            // About 45 cm in front of the sofa, the usual reach.
-            let gap = sofa.item.depth / 2 + 45 + item.depth / 2
-            result.append(spot(item, at: offset(sofa.center, sofa.front, gap), rotation: sofa.placement.rotation))
+        if item.isCoffeeTable, let sofa = mainSofa(placed) {
+            preferred += coffeeTableSpots(for: item, sofa: sofa)
         }
-        if item.type == .chair, let desk = placed.first(where: { $0.item.type == .desk }),
-           !placed.contains(where: { $0.item.type == .chair && $0.center.distance(to: desk.center) < 120 }) {
-            // A desk chair, pulled up to the desk and facing it.
-            let gap = desk.item.depth / 2 + item.depth / 2 + 5
-            result.append(spot(item, at: offset(desk.center, desk.front, gap), rotation: (desk.placement.rotation + 180) % 360))
+        if item.type == .chair {
+            if !item.isLoungeChair, let table = tableWithoutChair(placed) {
+                preferred += pullUpSpots(for: item, at: table)
+            } else if let sofa = mainSofa(placed) {
+                preferred += conversationSpots(for: item, sofa: sofa, placed: placed)
+            }
         }
         if item.type == .lamp {
-            result += lampSpots(for: item, placed: placed)
-        }
-        if result.isEmpty || !item.type.wantsWall {
-            result += openFloorSpots(for: item, placed: placed, rules: rules)
+            preferred += lampSpots(for: item, placed: placed)
         }
 
-        return result.map { ($0, appeal(of: $0, placed: placed, rules: rules)) }
+        var fallback: [PlacedItem] = []
+        if preferred.isEmpty {
+            preferred = openFloorSpots(for: item, placed: placed, rules: rules)
+        } else if !item.type.wantsWall {
+            fallback = openFloorSpots(for: item, placed: placed, rules: rules)
+        }
+
+        var scored = preferred.map { ($0, appeal(of: $0, placed: placed, rules: rules)) }
+            + fallback.map { ($0, appeal(of: $0, placed: placed, rules: rules) - fallbackPenalty) }
+        if item.type == .sofa, mainSofa(placed) == nil {
+            // Look ahead from every spot that follows the rules.
+            let tvComing = toCome.contains { $0.type == .tvStand }
+            scored = scored.filter { rules.quickProblems($0.0, among: placed).isEmpty }.map { spot, score in
+                var bonus = 8 * roomForGroup(around: spot, placed: placed, toCome: toCome, rules: rules)
+                if tvComing, facesSolidWall(spot, rules: rules) { bonus += 5 }
+                return (spot, score + bonus)
+            }
+        }
+        return scored
+    }
+
+    /// Centered in front of the sofa with a 45–50 cm gap, the usual reach,
+    /// or nudged a little to one side.
+    private static func coffeeTableSpots(for item: LayoutItem, sofa: PlacedItem) -> [PlacedItem] {
+        let side = sideways(sofa.front)
+        var result: [PlacedItem] = []
+        for gap in [45.0, 50.0] {
+            let middle = offset(sofa.center, sofa.front, sofa.item.depth / 2 + gap + item.depth / 2)
+            for shift in [0.0, -15, 15] {
+                result.append(spot(item, at: offset(middle, side, shift), rotation: sofa.placement.rotation))
+            }
+        }
+        return result
+    }
+
+    /// For a sofa spot, the share of its group (coffee table and armchairs
+    /// still to place) that would fit around it, 0 to 1. A quick look
+    /// ahead: it checks the hard rules but not the full walking path, and
+    /// skips chair spots right beside a doorway, which would block the way in.
+    static func roomForGroup(around sofa: PlacedItem, placed: [PlacedItem], toCome: [LayoutItem], rules: LayoutRules) -> Double {
+        var group = placed + [sofa]
+        var wanted = 0, fitted = 0
+        if let table = toCome.first(where: \.isCoffeeTable) {
+            wanted += 1
+            if let spot = coffeeTableSpots(for: table, sofa: sofa).first(where: { rules.quickProblems($0, among: group).isEmpty }) {
+                group.append(spot)
+                fitted += 1
+            }
+        }
+        for chair in toCome where chair.isLoungeChair {
+            wanted += 1
+            let tvComing = toCome.contains { $0.type == .tvStand }
+            let spot = conversationSpots(for: chair, sofa: sofa, placed: group, tvComing: tvComing).first { spot in
+                rules.quickProblems(spot, among: group).isEmpty
+                    && !rules.doors.contains { gap(between: $0.approach, and: spot.footprint) < 2 * LayoutRules.pathHalfWidth }
+            }
+            if let spot {
+                group.append(spot)
+                fitted += 1
+            }
+        }
+        return wanted == 0 ? 1 : Double(fitted) / Double(wanted)
+    }
+
+    /// True when the wall straight ahead of an item has no window near the
+    /// middle, so a TV can go there without glare.
+    static func facesSolidWall(_ item: PlacedItem, rules: LayoutRules) -> Bool {
+        let ahead = offset(item.center, item.front, max(item.footprint.width, item.footprint.height) / 2 + openDistance(from: item, rules: rules))
+        return rules.windowCenters.allSatisfy { $0.distance(to: ahead) > 120 }
+    }
+
+    /// A desk or dining table that has no chair pulled up to it yet.
+    private static func tableWithoutChair(_ placed: [PlacedItem]) -> PlacedItem? {
+        placed.first { table in
+            (table.item.type == .desk || (table.item.type == .table && !table.item.isCoffeeTable))
+                && !placed.contains { $0.item.type == .chair && $0.center.distance(to: table.center) < 120 }
+        }
+    }
+
+    /// A small chair pulled up to a desk or dining table, facing it.
+    private static func pullUpSpots(for item: LayoutItem, at table: PlacedItem) -> [PlacedItem] {
+        let gap = table.item.depth / 2 + item.depth / 2 + 5
+        var result = [spot(item, at: offset(table.center, table.front, gap), rotation: (table.placement.rotation + 180) % 360)]
+        if table.item.type == .table {
+            // A dining table can be sat at from either long side.
+            result.append(spot(item, at: offset(table.center, table.front, -gap), rotation: table.placement.rotation))
+        }
+        return result
+    }
+
+    /// Spots that make a conversation group with the sofa: beside the
+    /// coffee table at either end, facing in, or across from the sofa
+    /// facing it when there is no TV in the way (placed, or still to come).
+    private static func conversationSpots(for item: LayoutItem, sofa: PlacedItem, placed: [PlacedItem], tvComing: Bool = false) -> [PlacedItem] {
+        let f = sofa.front, side = sideways(f)
+        let table = placed.first { $0.item.isCoffeeTable }
+        let tableHalfWidth = (table?.item.width ?? 110) / 2
+        let tableHalfDepth = (table?.item.depth ?? 60) / 2
+        // Clear of the space the sofa needs in front, then level with the table.
+        let along = sofa.item.depth / 2 + ItemType.sofa.frontClearance(height: sofa.item.height)
+        var result: [PlacedItem] = []
+
+        for direction in [1.0, -1.0] {
+            let out = Point2D(x: side.x * direction, y: side.y * direction)
+            let rotation = Facing.rotation(facing: Point2D(x: -out.x, y: -out.y))
+            for gap in [45.0, 60.0] {
+                for shift in [0.0, 20, 40, 70] {
+                    // Turned to face the table, the chair's width runs along the sofa's front.
+                    let forward = offset(sofa.center, f, along + item.width / 2 + shift)
+                    result.append(spot(item, at: offset(forward, out, tableHalfWidth + gap + item.depth / 2), rotation: rotation))
+                }
+            }
+        }
+        if !tvComing, !placed.contains(where: { $0.item.type == .tvStand }) {
+            let across = offset(groupHub(sofa: sofa, placed: placed), f, tableHalfDepth + 45 + item.depth / 2)
+            for shift in [0.0, -40, 40] {
+                result.append(spot(item, at: offset(across, side, shift), rotation: (sofa.placement.rotation + 180) % 360))
+            }
+        }
+        return result
+    }
+
+    /// Lamps go at the end of a seat, a bed, or a desk: flush with its
+    /// back, level with its middle, or level with its front.
+    private static func lampSpots(for item: LayoutItem, placed: [PlacedItem]) -> [PlacedItem] {
+        var result: [PlacedItem] = []
+        for anchor in placed where [.sofa, .bed, .desk, .chair].contains(anchor.item.type) {
+            let f = anchor.front, side = sideways(f)
+            let reach = max(item.width, item.depth) / 2 + 3
+            for direction in [1.0, -1.0] {
+                for back in [anchor.item.depth / 2 - reach, 0, reach - anchor.item.depth / 2] {
+                    let end = offset(anchor.center, side, direction * (anchor.item.width / 2 + reach))
+                    result.append(spot(item, at: offset(end, f, -back), rotation: anchor.placement.rotation))
+                }
+            }
+        }
+        return result
     }
 
     /// Positions with the item's back against a straight, upright wall,
@@ -214,22 +364,6 @@ enum LayoutEngine {
         return result
     }
 
-    /// Lamps go beside a sofa, bed, or desk.
-    private static func lampSpots(for item: LayoutItem, placed: [PlacedItem]) -> [PlacedItem] {
-        var result: [PlacedItem] = []
-        for anchor in placed where [.sofa, .bed, .desk, .chair].contains(anchor.item.type) {
-            let box = anchor.footprint
-            let half = max(item.width, item.depth) / 2 + 2
-            let sides = [
-                Point2D(x: box.minX - half, y: box.center.y), Point2D(x: box.maxX + half, y: box.center.y),
-                Point2D(x: box.center.x, y: box.minY - half), Point2D(x: box.center.x, y: box.maxY + half),
-                Point2D(x: box.minX - half, y: box.minY + half), Point2D(x: box.maxX + half, y: box.minY + half),
-            ]
-            result += sides.map { spot(item, at: $0, rotation: anchor.placement.rotation) }
-        }
-        return result
-    }
-
     // MARK: How good is one spot
 
     private static func appeal(of candidate: PlacedItem, placed: [PlacedItem], rules: LayoutRules) -> Double {
@@ -241,10 +375,14 @@ enum LayoutEngine {
         case .bed:
             // Headboard on a solid wall: no window or door behind it.
             let back = candidate.footprint.expanded(by: 30)
-            let blocked = rules.windowZones.contains { $0.overlaps(back) } || rules.doorZones.contains { $0.overlaps(back) }
+            let blocked = rules.windowZones.contains { $0.overlaps(back) } || rules.doors.contains { $0.approach.overlaps(back) }
             score += blocked ? 0 : 4
             // Away from the door feels calmer.
-            score += min(nearestDistance(from: center, to: rules.doorZones.map(\.center)) / 150, 2)
+            score += min(nearestDistance(from: center, to: rules.doors.map(\.approach.center)) / 150, 2)
+        case .chair where item.isLoungeChair && mainSofa(placed) != nil:
+            // Part of the conversation group: close to it and facing in.
+            let fit = conversationFit(candidate, hub: groupHub(sofa: mainSofa(placed)!, placed: placed))
+            score += 6 * fit
         case .sofa, .chair:
             if let focus = focalPoint(placed: placed, rules: rules) {
                 score += 3 * facing(candidate, toward: focus)
@@ -263,7 +401,8 @@ enum LayoutEngine {
             score += rules.windowZones.contains { $0.overlaps(behind) } ? 0 : 3
             score += min(openDistance(from: candidate, rules: rules), 400) / 100
             if let sofa = placed.first(where: { $0.item.type == .sofa }) {
-                score += 3 * facing(candidate, toward: sofa.center)
+                // Across from the sofa, each facing the other.
+                score += 3 * facing(candidate, toward: sofa.center) + 5 * facing(sofa, toward: candidate.center)
             }
         case .desk:
             // Near daylight.
@@ -271,6 +410,8 @@ enum LayoutEngine {
         case .dresser, .shelf:
             let behind = candidate.footprint.expanded(by: 30)
             score += rules.windowZones.contains { $0.overlaps(behind) } ? 0 : 1.5
+            // On a free wall, away from the doors.
+            score += min(nearestDistance(from: center, to: rules.doors.map(\.approach.center)) / 100, 3)
         case .table:
             if item.isCoffeeTable, let sofa = placed.first(where: { $0.item.type == .sofa }) {
                 // As close as possible to the spot just in front of the sofa.
@@ -282,7 +423,7 @@ enum LayoutEngine {
                 score += max(0, 3 - center.distance(to: rules.middle) / 100)
             }
         case .lamp:
-            score += 1
+            score += 4 * lampFit(candidate, among: placed)
         case .rug:
             if let seats = seatingCenter(placed) {
                 score += max(0, 4 - center.distance(to: seats) / 50)
@@ -320,8 +461,10 @@ enum LayoutEngine {
             s.balance = 1
         }
 
-        // Seats facing the focal point.
-        let seats = placed.filter { $0.item.type.isSeating && !$0.isDeskChair(among: placed) }
+        // Seats facing the focal point. Armchairs in a group face the
+        // sofa instead, which `grouping` scores.
+        let sofas = placed.filter { $0.item.type == .sofa }
+        let seats = sofas.isEmpty ? placed.filter { $0.item.type.isSeating && !$0.isDeskChair(among: placed) } : sofas
         if let focus = focalPoint(placed: placed, rules: rules), !seats.isEmpty {
             s.facing = seats.map { facing($0, toward: focus) }.reduce(0, +) / Double(seats.count)
         } else {
@@ -343,6 +486,7 @@ enum LayoutEngine {
             return Point2D(x: current.x, y: current.y).distance(to: p.center)
         }
         s.fewMoves = moved.isEmpty ? 1 : max(0, 1 - moved.reduce(0, +) / Double(moved.count) / 300)
+        s.grouping = grouping(placed)
 
         let placedIDs = Set(placed.map(\.item.id))
         return LayoutSuggestion(
@@ -352,6 +496,74 @@ enum LayoutEngine {
             score: s.total,
             breakdown: s
         )
+    }
+
+    // MARK: Grouping
+
+    /// How well pieces that belong together sit together, 0 to 1: half the
+    /// average of every check that applies to this room's furniture, half
+    /// the worst one, so one piece off on its own pulls the score down.
+    static func grouping(_ placed: [PlacedItem]) -> Double {
+        var checks: [Double] = []
+        if let sofa = mainSofa(placed) {
+            if let table = placed.first(where: { $0.item.isCoffeeTable }) {
+                checks.append(coffeeTableFit(table, sofa: sofa))
+            }
+            let hub = groupHub(sofa: sofa, placed: placed)
+            for chair in placed where chair.item.isLoungeChair {
+                checks.append(conversationFit(chair, hub: hub))
+            }
+            if let tv = placed.first(where: { $0.item.type == .tvStand }) {
+                checks.append(facing(tv, toward: sofa.center) * facing(sofa, toward: tv.center))
+            }
+        }
+        for lamp in placed where lamp.item.type == .lamp {
+            checks.append(lampFit(lamp, among: placed))
+        }
+        guard let worst = checks.min() else { return 1 }
+        return (checks.reduce(0, +) / Double(checks.count) + worst) / 2
+    }
+
+    /// 1 when the coffee table is centered in front of the sofa, 45 cm
+    /// away and turned the same way; less the further off it is.
+    static func coffeeTableFit(_ table: PlacedItem, sofa: PlacedItem) -> Double {
+        let ideal = offset(sofa.center, sofa.front, sofa.item.depth / 2 + 45 + table.item.depth / 2)
+        let closeness = max(0, 1 - max(0, table.center.distance(to: ideal) - 10) / 60)
+        let turned = table.placement.rotation % 180 == sofa.placement.rotation % 180 ? 1.0 : 0.5
+        return closeness * turned
+    }
+
+    /// 1 when an armchair is near the middle of the seating group and
+    /// facing it.
+    static func conversationFit(_ chair: PlacedItem, hub: Point2D) -> Double {
+        let distance = chair.center.distance(to: hub)
+        let closeness = max(0, 1 - max(0, distance - 180) / 100)
+        return closeness * (0.2 + 0.8 * facing(chair, toward: hub))
+    }
+
+    /// 1 when a lamp stands right beside a seat, bed, or desk.
+    static func lampFit(_ lamp: PlacedItem, among placed: [PlacedItem]) -> Double {
+        let anchors = placed.filter { [.sofa, .chair, .bed, .desk].contains($0.item.type) }
+        let gap = anchors.map { gap(between: lamp.footprint, and: $0.footprint) }.min() ?? 1_000
+        return max(0, 1 - max(0, gap - 15) / 85)
+    }
+
+    /// The middle of the seating group: the coffee table, or where it
+    /// would go in front of the sofa.
+    static func groupHub(sofa: PlacedItem, placed: [PlacedItem]) -> Point2D {
+        if let table = placed.first(where: { $0.item.isCoffeeTable }) { return table.center }
+        return offset(sofa.center, sofa.front, sofa.item.depth / 2 + 75)
+    }
+
+    static func mainSofa(_ placed: [PlacedItem]) -> PlacedItem? {
+        placed.first { $0.item.type == .sofa }
+    }
+
+    /// Shortest distance between two boxes (zero when they touch).
+    static func gap(between a: Box, and b: Box) -> Double {
+        let dx = max(a.minX - b.maxX, 0, b.minX - a.maxX)
+        let dy = max(a.minY - b.maxY, 0, b.minY - a.maxY)
+        return hypot(dx, dy)
     }
 
     // MARK: Picking distinct layouts
@@ -370,11 +582,29 @@ enum LayoutEngine {
         // First, only layouts that fit as many items as the best one does,
         // so a layout that leaves something out is never shown when a
         // complete one exists...
+        // ...and that keep the seating group about as well together as
+        // the best one does, so "Most open floor" never means scattered.
         let fewestLeftOut = sorted.map(\.leftOut.count).min() ?? 0
-        take(from: sorted.filter { $0.leftOut.count == fewestLeftOut }, upTo: count)
+        let complete = sorted.filter { $0.leftOut.count == fewestLeftOut }
+        let bestGrouping = complete.map(\.breakdown.grouping).max() ?? 0
+        take(from: complete.filter { $0.breakdown.grouping >= bestGrouping - 0.2 }, upTo: count)
         // ...then, if that gives fewer than 3, top up with the rest.
+        take(from: complete, upTo: max(min(3, count), picked.count))
         take(from: sorted, upTo: max(min(3, count), picked.count))
         return picked
+    }
+
+    /// Makes sure the current layout is offered: it takes the place of a
+    /// near copy of itself, or of the last option.
+    private static func keep(_ current: LayoutSuggestion, in picked: inout [LayoutSuggestion], count: Int) {
+        guard !picked.contains(where: { $0.placements == current.placements }) else { return }
+        if let twin = picked.firstIndex(where: { difference($0, current) < 40 }) {
+            picked[twin] = current
+        } else if picked.count < count {
+            picked.append(current)
+        } else if !picked.isEmpty {
+            picked[picked.count - 1] = current
+        }
     }
 
     /// Average distance items moved between two layouts, in cm. An item
@@ -498,6 +728,11 @@ enum LayoutEngine {
 
     private static func offset(_ p: Point2D, _ direction: Point2D, _ distance: Double) -> Point2D {
         Point2D(x: p.x + direction.x * distance, y: p.y + direction.y * distance)
+    }
+
+    /// A direction a quarter turn from `direction`.
+    private static func sideways(_ direction: Point2D) -> Point2D {
+        Point2D(x: -direction.y, y: direction.x)
     }
 }
 

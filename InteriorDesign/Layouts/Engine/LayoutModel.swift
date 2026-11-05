@@ -180,14 +180,18 @@ extension ItemType {
     var placementPriority: Int {
         switch self {
         case .bed: return 0
-        // The TV goes first so the sofa can turn to face it.
-        case .tvStand: return 1
-        case .sofa: return 2
-        case .desk, .dresser, .shelf: return 3
+        // The sofa goes first, in a spot with room for its group; then the
+        // TV goes across from it.
+        case .sofa: return 1
+        case .tvStand: return 2
+        case .desk, .dresser: return 3
         case .table: return 4
         case .chair, .other: return 5
+        // After the seats, so the lamp gets a spot beside one and shelves
+        // don't take the armchair's place.
         case .lamp: return 6
-        case .rug: return 7
+        case .shelf: return 7
+        case .rug: return 8
         }
     }
 }
@@ -199,6 +203,14 @@ extension LayoutItem {
 
     /// Tall enough to block light if put in front of a window.
     var isTall: Bool { height > 100 && type != .lamp }
+
+    /// Stands tall beside a doorway and makes it feel cramped: shelves,
+    /// floor lamps, wardrobes, plants.
+    var isStanding: Bool { type == .shelf || (type == .lamp && height >= 100) || height >= 120 }
+
+    /// A big chair for lounging, which joins the sofa, rather than a small
+    /// one that pulls up to a desk or dining table.
+    var isLoungeChair: Bool { type == .chair && max(width, depth) >= 65 }
 
     /// Rugs lie under other things, so they never count as overlapping.
     var liesFlat: Bool { type == .rug }

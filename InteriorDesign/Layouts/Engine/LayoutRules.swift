@@ -29,10 +29,41 @@ enum LayoutProblem: Equatable, Sendable {
         case .outsideRoom(let a): return "\(name(a)) doesn't fit inside the room there."
         case .overlaps(let a, let b): return "\(name(a)) overlaps \(name(b))."
         case .inFrontOf(let a, let b): return "\(name(a)) is in the space \(name(b)) needs in front of it."
-        case .blocksDoor(let a): return "\(name(a)) blocks a door from opening."
+        case .blocksDoor(let a): return "\(name(a)) blocks a door or the way through it."
         case .blocksWindow(let a): return "\(name(a)) is tall and blocks a window."
         case .unreachable(let a): return "There's no clear path from the door to \(name(a))."
         }
+    }
+}
+
+/// The floor one door needs kept clear, worked out once per room. These
+/// are hard rules: no suggested layout ever puts furniture in them.
+struct DoorClearance: Sendable {
+    /// The square the door leaf sweeps as it opens (inward doors only).
+    var swing: Box?
+    /// The strip of wall beyond the hinge, where the open door folds back.
+    /// Furniture here stops the door opening fully (inward doors only).
+    var behind: Box?
+    /// Room to step through and turn: in front of the doorway, a bit wider
+    /// than the door.
+    var approach: Box
+    /// Tall pieces (shelves, floor lamps, wardrobes, plants) stay this far
+    /// back from the doorway, so it doesn't feel cramped to walk in.
+    var tallBuffer: Box
+
+    /// How deep the approach zone is, and how far past each side of the
+    /// door it reaches.
+    static let approachDepth = 90.0
+    static let approachSide = 15.0
+    /// Extra space tall pieces leave around the approach zone.
+    static let tallGap = 30.0
+
+    /// The zones every piece must stay out of.
+    var keepClear: [Box] { [swing, behind, approach].compactMap { $0 } }
+
+    /// True when a footprint breaks this door's rules.
+    func isBlocked(by box: Box, standing: Bool) -> Bool {
+        keepClear.contains { $0.overlaps(box) } || (standing && tallBuffer.overlaps(box))
     }
 }
 
@@ -41,8 +72,8 @@ enum LayoutProblem: Equatable, Sendable {
 struct LayoutRules {
     let room: LayoutRoom
     let grid: FloorGrid
-    /// Space each door needs to swing open (or to step through).
-    let doorZones: [Box]
+    /// Space each door needs to open fully and to step through.
+    let doors: [DoorClearance]
     /// Space in front of each window that tall furniture must leave clear.
     let windowZones: [Box]
     /// Outlets, as points on the walls.
@@ -55,26 +86,26 @@ struct LayoutRules {
     /// Half the width of a walking path: 38 cm makes a 76 cm (30 in) path,
     /// the narrow end of the usual 76–91 cm guidance.
     static let pathHalfWidth = 38.0
+    /// How far past the walkway a seat may be: the last step in, between
+    /// the coffee table and the next seat.
+    static let seatStep = 60.0
 
     init(room: LayoutRoom) {
         self.room = room
         grid = FloorGrid(corners: room.corners)
-        var doors: [Box] = []
+        var doors: [DoorClearance] = []
         var windows: [Box] = []
         for feature in room.features {
             switch feature.kind {
             case .door:
-                // An inward door sweeps a square as deep as it is wide;
-                // either way people need room to step in.
-                let depth = feature.opensInward ? feature.widthCm : 60
-                doors.append(Self.zone(feature, depth: depth, corners: room.corners))
+                doors.append(Self.clearance(for: feature, corners: room.corners))
             case .window:
                 windows.append(Self.zone(feature, depth: 40, corners: room.corners))
             case .outlet:
                 break
             }
         }
-        doorZones = doors
+        self.doors = doors
         windowZones = windows
 
         // Worked out once here, because the engine asks thousands of times.
@@ -105,7 +136,7 @@ struct LayoutRules {
             problems.append(.outsideRoom(id))
         }
         if !new.item.liesFlat {
-            if doorZones.contains(where: { $0.overlaps(box) }) {
+            if doors.contains(where: { $0.isBlocked(by: box, standing: new.item.isStanding) }) {
                 problems.append(.blocksDoor(id))
             }
             if new.item.isTall, windowZones.contains(where: { $0.overlaps(box) }) {
@@ -151,23 +182,31 @@ struct LayoutRules {
     // MARK: Walking path
 
     /// Items that need to be reached but have no walking path to them from
-    /// a door.
+    /// every door. Each door is checked on its own, so a second door can't
+    /// be walled off just because the first one reaches everything.
     func unreachableItems(in placed: [PlacedItem]) -> [UUID] {
         let walk = grid.walkableCells(blockedBy: placed.filter { !$0.item.liesFlat }.map(\.footprint), halfWidth: Self.pathHalfWidth)
-        let starts = doorZones.isEmpty
-            ? Array(walk.indices.filter { walk[$0] }.prefix(1))
-            : doorZones.flatMap { grid.cells(in: $0) }.filter { walk[$0] }
-        if starts.isEmpty {
-            // No room to walk in at all.
-            return placed.filter { needsAccess($0.item) }.map(\.item.id)
-        }
-        let reached = grid.flood(from: starts, through: walk)
+        let startSets: [[Int]] = doors.isEmpty
+            ? [Array(walk.indices.filter { walk[$0] }.prefix(1))]
+            : doors.map { door in grid.cells(in: door.approach).filter { walk[$0] } }
+        let targets = placed.filter { needsAccess($0.item) }
 
-        return placed.filter { needsAccess($0.item) }.compactMap { item in
-            let target = (item.clearance ?? item.footprint).expanded(by: Self.pathHalfWidth + 8)
-            let ok = grid.cells(in: target).contains { reached[$0] }
-            return ok ? nil : item.item.id
+        var unreachable: [UUID] = []
+        for starts in startSets {
+            // No room to walk in at all through this door.
+            let reached = starts.isEmpty ? [Bool](repeating: false, count: walk.count) : grid.flood(from: starts, through: walk)
+            for item in targets where !unreachable.contains(item.item.id) {
+                // A seat in a group is reached through the narrower gap
+                // around the coffee table, so the full-width path only has
+                // to come within about a step of it.
+                let step = item.item.type.isSeating ? Self.seatStep : 8
+                let target = (item.clearance ?? item.footprint).expanded(by: Self.pathHalfWidth + step)
+                if !grid.cells(in: target).contains(where: { reached[$0] }) {
+                    unreachable.append(item.item.id)
+                }
+            }
         }
+        return unreachable
     }
 
     /// Share of the open floor a person can walk to, 0 to 1.
@@ -188,18 +227,49 @@ struct LayoutRules {
 
     // MARK: Helpers
 
+    /// Every zone one door needs. Offsets run along the wall from its first
+    /// corner, like `FixedFeature.offsetCm`.
+    static func clearance(for door: FixedFeature, corners: [Point2D]) -> DoorClearance {
+        let w = door.widthCm
+        let start = door.offsetCm - w / 2, end = door.offsetCm + w / 2
+        func strip(_ from: Double, _ to: Double, _ depth: Double) -> Box {
+            zone(wall: door.wall, from: from, to: to, depth: depth, corners: corners)
+        }
+        let side = DoorClearance.approachSide, gap = DoorClearance.tallGap
+        let approach = strip(start - side, end + side, DoorClearance.approachDepth)
+        var swing: Box?, behind: Box?
+        if door.opensInward {
+            // The leaf sweeps a square as deep as the door is wide, then
+            // folds back against the wall past the hinge.
+            swing = strip(start, end, w)
+            behind = door.hingeAtStart ? strip(start - w, start, w) : strip(end, end + w, w)
+        }
+        return DoorClearance(
+            swing: swing,
+            behind: behind,
+            approach: approach,
+            tallBuffer: strip(start - side - gap, end + side + gap, DoorClearance.approachDepth + gap)
+        )
+    }
+
     /// The upright box covering a strip `depth` cm into the room in front
     /// of a door or window.
     private static func zone(_ feature: FixedFeature, depth: Double, corners: [Point2D]) -> Box {
+        zone(wall: feature.wall, from: feature.offsetCm - feature.widthCm / 2, to: feature.offsetCm + feature.widthCm / 2, depth: depth, corners: corners)
+    }
+
+    /// The upright box covering a strip `depth` cm into the room along a
+    /// wall, between two offsets (which may run past the wall's ends).
+    private static func zone(wall: Int, from: Double, to: Double, depth: Double, corners: [Point2D]) -> Box {
         let count = corners.count
-        let wall = PolygonGeometry.wrap(feature.wall, count)
+        let wall = PolygonGeometry.wrap(wall, count)
         let a = corners[wall]
         let b = corners[(wall + 1) % count]
         let length = max(PlanGeometry.distance(a, b), 0.001)
         // Into the room, for corners listed clockwise on screen.
         let inward = Point2D(x: -(b.y - a.y) / length, y: (b.x - a.x) / length)
-        let start = PlanGeometry.point(onWall: wall, offset: feature.offsetCm - feature.widthCm / 2, corners: corners)
-        let end = PlanGeometry.point(onWall: wall, offset: feature.offsetCm + feature.widthCm / 2, corners: corners)
+        let start = PlanGeometry.point(onWall: wall, offset: from, corners: corners)
+        let end = PlanGeometry.point(onWall: wall, offset: to, corners: corners)
         let points = [start, end,
                       Point2D(x: start.x + inward.x * depth, y: start.y + inward.y * depth),
                       Point2D(x: end.x + inward.x * depth, y: end.y + inward.y * depth)]

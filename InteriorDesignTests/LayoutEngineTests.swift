@@ -200,6 +200,246 @@ final class LayoutEngineTests: XCTestCase {
         XCTAssertTrue(rules.quickProblems(blocking, among: []).contains(.blocksDoor(shelf.id)))
     }
 
+    // MARK: Doors (hard rules)
+
+    func testSampleLivingRoomDoorZones() throws {
+        // The door is on the bottom wall, which runs right to left, 80 cm
+        // from the right corner: the opening spans x 295–385, hinge at 385.
+        let door = try XCTUnwrap(LayoutRules(room: livingRoom).doors.first)
+        XCTAssertEqual(door.swing, Box(minX: 295, minY: 270, maxX: 385, maxY: 360))
+        // Past the hinge, into the corner where the open door folds back.
+        XCTAssertEqual(door.behind, Box(minX: 385, minY: 270, maxX: 475, maxY: 360))
+        XCTAssertEqual(door.approach, Box(minX: 280, minY: 270, maxX: 400, maxY: 360))
+        XCTAssertEqual(door.tallBuffer, Box(minX: 250, minY: 240, maxX: 430, maxY: 360))
+    }
+
+    func testBehindDoorFollowsTheHinge() throws {
+        var room = livingRoom
+        room.features[0].hingeAtStart = false
+        let door = try XCTUnwrap(LayoutRules(room: room).doors.first)
+        let behind = try XCTUnwrap(door.behind)
+        XCTAssertEqual(behind.minX, 205, accuracy: 0.001)
+        XCTAssertEqual(behind.maxX, 295, accuracy: 0.001)
+        XCTAssertEqual(behind.minY, 270, accuracy: 0.001)
+        XCTAssertEqual(behind.maxY, 360, accuracy: 0.001)
+    }
+
+    func testOutwardDoorHasNoSwingButKeepsItsApproach() throws {
+        var room = livingRoom
+        room.features[0].opensInward = false
+        let door = try XCTUnwrap(LayoutRules(room: room).doors.first)
+        XCTAssertNil(door.swing)
+        XCTAssertNil(door.behind)
+        XCTAssertEqual(door.approach.height, 90)
+    }
+
+    func testShelfInTheCornerBehindTheDoorIsRejected() {
+        // The spot from the bug report: the bookshelf against the right
+        // wall in the bottom corner, where the door folds back.
+        let rules = LayoutRules(room: livingRoom)
+        let shelf = item(.shelf, "Bookshelf", 80, 30, 180)
+        let corner = PlacedItem(item: shelf, placement: ItemPlacement(itemID: shelf.id, x: 404, y: 310, rotation: 90))
+        XCTAssertTrue(rules.quickProblems(corner, among: []).contains(.blocksDoor(shelf.id)))
+    }
+
+    func testTallLampKeepsBackFromTheDoorway() {
+        let rules = LayoutRules(room: livingRoom)
+        let lamp = item(.lamp, "Floor lamp", 30, 30, 160)
+        // Just left of the approach zone: fine for a low stool, not a lamp.
+        let beside = PlacedItem(item: lamp, placement: ItemPlacement(itemID: lamp.id, x: 262, y: 340, rotation: 0))
+        XCTAssertTrue(rules.quickProblems(beside, among: []).contains(.blocksDoor(lamp.id)))
+        let stool = item(.other, "Stool", 30, 30, 45)
+        let low = PlacedItem(item: stool, placement: ItemPlacement(itemID: stool.id, x: 262, y: 340, rotation: 0))
+        XCTAssertFalse(rules.quickProblems(low, among: []).contains(.blocksDoor(stool.id)))
+    }
+
+    func testEveryDoorNeedsAPath() {
+        // Two doors at opposite ends of a corridor-like room; a sofa across
+        // the middle leaves each half reachable from only one door.
+        let room = LayoutRoom(
+            corners: PlanGeometry.rectangleCorners(width: 200, length: 500),
+            features: [
+                FixedFeature(kind: .door, wall: 0, offsetCm: 100, widthCm: 80),
+                FixedFeature(kind: .door, wall: 2, offsetCm: 100, widthCm: 80),
+            ]
+        )
+        let rules = LayoutRules(room: room)
+        let sofa = item(.sofa, "Sofa", 200, 90, 85)
+        let placed = [PlacedItem(item: sofa, placement: ItemPlacement(itemID: sofa.id, x: 100, y: 250, rotation: 0))]
+        XCTAssertTrue(rules.unreachableItems(in: placed).contains(sofa.id))
+    }
+
+    /// Rooms with doors in awkward places: near corners, both hinge
+    /// directions, two doors, and an L shape.
+    private var doorTestRooms: [(String, LayoutRoom, [LayoutItem])] {
+        var hingeFlipped = livingRoom
+        hingeFlipped.features[0].hingeAtStart = false
+        let twoDoors = LayoutRoom(
+            corners: PlanGeometry.rectangleCorners(width: 450, length: 380),
+            features: [
+                FixedFeature(kind: .door, wall: 3, offsetCm: 60, widthCm: 85),
+                FixedFeature(kind: .door, wall: 1, offsetCm: 300, widthCm: 80, hingeAtStart: false),
+                FixedFeature(kind: .window, wall: 0, offsetCm: 225, widthCm: 140),
+                FixedFeature(kind: .outlet, wall: 2, offsetCm: 200, widthCm: 10),
+            ]
+        )
+        let lShape = LayoutRoom(
+            corners: [
+                Point2D(x: 0, y: 0), Point2D(x: 500, y: 0), Point2D(x: 500, y: 250),
+                Point2D(x: 280, y: 250), Point2D(x: 280, y: 450), Point2D(x: 0, y: 450),
+            ],
+            features: [
+                FixedFeature(kind: .door, wall: 4, offsetCm: 60, widthCm: 90),
+                FixedFeature(kind: .window, wall: 0, offsetCm: 250, widthCm: 160),
+            ]
+        )
+        return [
+            ("living", livingRoom, livingItems),
+            ("hinge flipped", hingeFlipped, livingItems),
+            ("two doors", twoDoors, livingItems),
+            ("L shape", lShape, livingItems),
+            ("no TV", livingRoom, livingItems.filter { $0.type != .tvStand }),
+        ]
+    }
+
+    /// Fails if any placed piece is in a door's swing, behind it, in its
+    /// approach, or (for tall pieces) too close to the doorway.
+    private func assertDoorsClear(_ layouts: [LayoutSuggestion], room: LayoutRoom, items: [LayoutItem], context: String, file: StaticString = #filePath, line: UInt = #line) {
+        let rules = LayoutRules(room: room)
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        for layout in layouts {
+            for p in layout.placements {
+                let piece = PlacedItem(item: byID[p.itemID]!, placement: p)
+                guard !piece.item.liesFlat else { continue }
+                for door in rules.doors {
+                    for zone in door.keepClear {
+                        XCTAssertFalse(zone.overlaps(piece.footprint), "\(context) \(layout.label): \(piece.item.name) in door zone \(zone)", file: file, line: line)
+                    }
+                    if piece.item.isStanding {
+                        XCTAssertFalse(door.tallBuffer.overlaps(piece.footprint), "\(context) \(layout.label): \(piece.item.name) too close to the doorway", file: file, line: line)
+                    }
+                }
+            }
+        }
+    }
+
+    func testNoOptionUsesDoorSpace() {
+        for (name, room, items) in doorTestRooms {
+            for seed: UInt64 in [1, 7, 42, 99, 2026] {
+                var options = LayoutEngine.Options()
+                options.seed = seed
+                let layouts = LayoutEngine.suggest(room: room, items: items, options: options)
+                XCTAssertFalse(layouts.isEmpty, name)
+                assertDoorsClear(layouts, room: room, items: items, context: "\(name) seed \(seed)")
+                assertValid(layouts, room: room, items: items)
+            }
+        }
+    }
+
+    func testDoorRulesHoldAcrossManySeeds() {
+        // Fewer candidates per run so many seeds stay quick.
+        for (name, room, items) in doorTestRooms {
+            for seed: UInt64 in 100..<120 {
+                var options = LayoutEngine.Options()
+                options.seed = seed
+                options.candidates = 15
+                let layouts = LayoutEngine.suggest(room: room, items: items, options: options)
+                assertDoorsClear(layouts, room: room, items: items, context: "\(name) seed \(seed)")
+            }
+        }
+    }
+
+    // MARK: Grouping (soft rules)
+
+    private func placed(_ layout: LayoutSuggestion, _ items: [LayoutItem]) -> [PlacedItem] {
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        return layout.placements.map { PlacedItem(item: byID[$0.itemID]!, placement: $0) }
+    }
+
+    /// Every complete living-room layout across a few seeds, with and
+    /// without the TV.
+    private func livingLayouts() -> [(LayoutSuggestion, [PlacedItem])] {
+        livingLayouts(livingItems) + livingLayouts(livingItems.filter { $0.type != .tvStand })
+    }
+
+    private func livingLayouts(_ items: [LayoutItem]) -> [(LayoutSuggestion, [PlacedItem])] {
+        [1, 7, 42, 99].flatMap { (seed: UInt64) -> [(LayoutSuggestion, [PlacedItem])] in
+            var options = LayoutEngine.Options()
+            options.seed = seed
+            return LayoutEngine.suggest(room: livingRoom, items: items, options: options)
+                .filter { $0.leftOut.isEmpty }
+                .map { ($0, placed($0, items)) }
+        }
+    }
+
+    func testCoffeeTableSitsInFrontOfTheSofa() throws {
+        for (layout, pieces) in livingLayouts() {
+            let sofa = try XCTUnwrap(pieces.first { $0.item.type == .sofa })
+            let table = try XCTUnwrap(pieces.first { $0.item.isCoffeeTable })
+            // In front of the sofa, 45–50 cm away, within 15 cm of centered.
+            let toTable = Point2D(x: table.center.x - sofa.center.x, y: table.center.y - sofa.center.y)
+            let ahead = toTable.x * sofa.front.x + toTable.y * sofa.front.y
+            let across = abs(toTable.x * sofa.front.y - toTable.y * sofa.front.x)
+            let gap = ahead - sofa.item.depth / 2 - table.item.depth / 2
+            XCTAssertTrue((44...51).contains(gap), "\(layout.label): gap \(gap)")
+            XCTAssertLessThanOrEqual(across, 15.5, layout.label)
+        }
+    }
+
+    func testFloorLampStandsBesideASeat() throws {
+        for (layout, pieces) in livingLayouts() {
+            let lamp = try XCTUnwrap(pieces.first { $0.item.type == .lamp })
+            let seats = pieces.filter { $0.item.type.isSeating }
+            let gap = seats.map { LayoutEngine.gap(between: lamp.footprint, and: $0.footprint) }.min() ?? .infinity
+            XCTAssertLessThanOrEqual(gap, 15, "\(layout.label): lamp is \(gap) cm from the nearest seat")
+        }
+    }
+
+    func testArmchairJoinsTheSofa() throws {
+        for (layout, pieces) in livingLayouts() {
+            let chair = try XCTUnwrap(pieces.first { $0.item.isLoungeChair })
+            let table = try XCTUnwrap(pieces.first { $0.item.isCoffeeTable })
+            // Items only turn in quarter turns, so a chair off the table's
+            // corner can't face it head on; 0.45 is within about 60°.
+            XCTAssertLessThan(chair.center.distance(to: table.center), 240, layout.label)
+            XCTAssertGreaterThan(LayoutEngine.facing(chair, toward: table.center), 0.45, layout.label)
+        }
+    }
+
+    func testBestLayoutHasATightGroup() throws {
+        for items in [livingItems, livingItems.filter { $0.type != .tvStand }] {
+            for seed: UInt64 in [1, 7, 42, 99] {
+                var options = LayoutEngine.Options()
+                options.seed = seed
+                let best = try XCTUnwrap(LayoutEngine.suggest(room: livingRoom, items: items, options: options).first)
+                XCTAssertGreaterThan(best.breakdown.grouping, 0.9, "seed \(seed): \(best.label)")
+            }
+        }
+    }
+
+    func testEveryOptionKeepsTheGroupTogether() {
+        // Including "Most open floor": open floor never means scattered.
+        for (layout, _) in livingLayouts() {
+            XCTAssertGreaterThan(layout.breakdown.grouping, 0.6, "\(layout.label) grouping \(layout.breakdown.grouping)")
+        }
+    }
+
+    func testGroupingScoresTheBugReportLowerThanAGroup() {
+        // The reported layout: armchair alone across the room, lamp by the
+        // door, coffee table off to the side.
+        let sofa = item(.sofa, "Sofa", 210, 90, 85)
+        let table = item(.table, "Coffee table", 110, 60, 42)
+        let chair = item(.chair, "Armchair", 80, 85, 90)
+        let lamp = item(.lamp, "Floor lamp", 30, 30, 160)
+        func at(_ i: LayoutItem, _ x: Double, _ y: Double, _ r: Int) -> PlacedItem {
+            PlacedItem(item: i, placement: ItemPlacement(itemID: i.id, x: x, y: y, rotation: r))
+        }
+        let scattered = [at(sofa, 160, 46, 0), at(table, 330, 200, 90), at(chair, 60, 300, 180), at(lamp, 270, 340, 0)]
+        let grouped = [at(sofa, 160, 46, 0), at(table, 160, 166, 0), at(chair, 302, 176, 90), at(lamp, 37, 20, 0)]
+        XCTAssertLessThan(LayoutEngine.grouping(scattered), 0.4)
+        XCTAssertGreaterThan(LayoutEngine.grouping(grouped), 0.9)
+    }
+
     func testTallItemCannotBlockWindow() {
         let rules = LayoutRules(room: livingRoom)
         let shelf = item(.shelf, "Shelf", 80, 30, 180)
