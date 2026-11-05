@@ -47,6 +47,11 @@ struct RoomBuilderView: View {
             .pickerStyle(.segmented)
             .padding(.horizontal, Theme.Space.md)
             .padding(.top, Theme.Space.sm)
+            // Room below the switch, and drawn above the page, so content
+            // scrolling up never clips its bottom edge or shadow.
+            .padding(.bottom, Theme.Space.sm)
+            .background(Theme.background)
+            .zIndex(1)
             .accessibilityLabel("Show the room's walls and doors, or its furniture")
 
             if page == .room {

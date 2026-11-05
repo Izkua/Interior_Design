@@ -11,6 +11,7 @@ struct RoomFurnitureView: View {
     /// What's open on top: moving furniture by hand, or the suggestions.
     @State private var arranging: LayoutSuggestion?
     @State private var showSuggestions = false
+    @State private var editing: Item?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -22,75 +23,41 @@ struct RoomFurnitureView: View {
         let problemIDs = RoomFurniture.problemIDs(placed, room: room.layoutRoom)
 
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Space.md) {
-                if items.isEmpty {
-                    EmptyState(
-                        systemImage: "sofa",
-                        title: "No furniture in \(room.name) yet",
-                        message: "Add the pieces you own to this room, then arrange them.",
-                        actionTitle: "Add an item"
-                    ) { showAddItem = true }
-                } else {
-                    AppCard(padding: 0) {
-                        LayoutPlanView(room: room.layoutRoom, placed: placed, unit: unit, problemIDs: problemIDs)
-                            .frame(height: 320)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                    }
-
-                    if room.chosenLayout == nil {
-                        note("Place your furniture where it is today. \"Place all\" puts everything in a sensible spot to start; then drag pieces to where they really are.")
-                    } else if let label = room.chosenLayout?.label {
-                        note(label.hasPrefix("Current arrangement")
-                             ? "This is how your furniture is arranged now. Use Move furniture to change it."
-                             : "Arranged like the suggested layout \"\(label)\". Use Move furniture to change it.")
-                    }
-                    if !problemIDs.isEmpty {
-                        Label("\(problemIDs.count == 1 ? "1 piece is" : "\(problemIDs.count) pieces are") outside the room, overlapping, or blocking a door or path (shown in red). Use Move furniture to fix it.",
-                              systemImage: "exclamationmark.triangle.fill")
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.danger)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !unplaced.isEmpty {
-                        AppCard {
-                            VStack(alignment: .leading, spacing: Theme.Space.sm) {
-                                SectionHeader(title: "Not placed yet")
-                                Text(unplaced.map(\.name).joined(separator: ", "))
-                                    .font(Typography.body)
-                                    .foregroundStyle(Theme.textSecondary)
-                            }
+            if items.isEmpty {
+                EmptyState(
+                    systemImage: "sofa",
+                    title: "No furniture in \(room.name) yet",
+                    message: "Add the pieces you own to this room, then arrange them.",
+                    actionTitle: "Add an item"
+                ) { showAddItem = true }
+                .padding(Theme.Space.md)
+            } else {
+                // Everything scrolls together: the plan, the buttons, then
+                // the furniture list.
+                LazyVStack(alignment: .leading, spacing: Theme.Space.md) {
+                    VStack(alignment: .leading, spacing: Theme.Space.md) {
+                        AppCard(padding: 0) {
+                            LayoutPlanView(room: room.layoutRoom, placed: placed, unit: unit, problemIDs: problemIDs)
+                                .frame(height: 320)
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                         }
+                        statusNotes(problemIDs: problemIDs)
                     }
+                    .padding(.horizontal, Theme.Space.md)
 
-                    Button {
-                        arranging = room.chosenLayout == nil
-                            ? RoomFurniture.placeAll(items, room: room.layoutRoom)
-                            : RoomFurniture.currentSuggestion(items, room: room.layoutRoom)
-                    } label: {
-                        Label(room.chosenLayout == nil ? "Place all" : "Move furniture", systemImage: "hand.draw")
-                            .font(Typography.headline)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                            .foregroundStyle(.white)
+                    Section {
+                        furnitureList(unplaced: Set(unplaced.map(\.id)))
+                            .padding(.horizontal, Theme.Space.md)
+                            .padding(.bottom, Theme.Space.lg)
+                    } header: {
+                        actionButtons(items)
                     }
-                    .buttonStyle(PressableStyle())
-
-                    Button {
-                        showSuggestions = true
-                    } label: {
-                        Label("See suggested layouts", systemImage: "square.split.2x2")
-                            .font(Typography.headline)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                            .foregroundStyle(Theme.accent)
-                    }
-                    .buttonStyle(PressableStyle())
                 }
+                .padding(.top, Theme.Space.sm)
             }
-            .padding(Theme.Space.md)
         }
         .sheet(isPresented: $showAddItem) { ItemEditorSheet(item: nil, defaultRoom: room) }
+        .sheet(item: $editing) { item in ItemEditorSheet(item: item) }
         // Sheets, not pushed screens: a screen pushed from this already
         // pushed one can loop forever on iOS 26 (see ProductDetailView).
         .sheet(item: $arranging) { suggestion in
@@ -113,6 +80,90 @@ struct RoomFurnitureView: View {
                             Button("Done") { showSuggestions = false }.frame(minHeight: Theme.minTap)
                         }
                     }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statusNotes(problemIDs: Set<UUID>) -> some View {
+        if room.chosenLayout == nil {
+            note("Place your furniture where it is today. \"Place all\" puts everything in a sensible spot to start; then drag pieces to where they really are.")
+        } else if let label = room.chosenLayout?.label {
+            note(label.hasPrefix("Current arrangement")
+                 ? "This is how your furniture is arranged now. Use Move furniture to change it."
+                 : "Arranged like the suggested layout \"\(label)\". Use Move furniture to change it.")
+        }
+        if !problemIDs.isEmpty {
+            Label("\(problemIDs.count == 1 ? "1 piece is" : "\(problemIDs.count) pieces are") outside the room, overlapping, or blocking a door or path (shown in red). Use Move furniture to fix it.",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(Typography.caption)
+                .foregroundStyle(Theme.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The two main actions, between the plan and the furniture list.
+    private func actionButtons(_ items: [LayoutItem]) -> some View {
+        VStack(spacing: Theme.Space.sm) {
+            Button {
+                arranging = room.chosenLayout == nil
+                    ? RoomFurniture.placeAll(items, room: room.layoutRoom)
+                    : RoomFurniture.currentSuggestion(items, room: room.layoutRoom)
+            } label: {
+                Label(room.chosenLayout == nil ? "Place all" : "Move furniture", systemImage: "hand.draw")
+                    .font(Typography.headline)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(PressableStyle())
+
+            Button {
+                showSuggestions = true
+            } label: {
+                Label("See suggested layouts", systemImage: "square.split.2x2")
+                    .font(Typography.headline)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .padding(.horizontal, Theme.Space.md)
+        .padding(.vertical, Theme.Space.sm)
+    }
+
+    /// The room's furniture with photos and sizes; tap one to edit it.
+    private func furnitureList(unplaced: Set<UUID>) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.sm) {
+            HStack {
+                SectionHeader(title: "Furniture in \(room.name)")
+                Spacer()
+                Button {
+                    showAddItem = true
+                } label: {
+                    Label("Add", systemImage: "plus")
+                        .font(Typography.subheadline)
+                        .frame(minHeight: Theme.minTap)
+                }
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Space.sm + 4), GridItem(.flexible(), spacing: Theme.Space.sm + 4)],
+                      spacing: Theme.Space.sm + 4) {
+                ForEach(room.allItems) { item in
+                    Button {
+                        editing = item
+                    } label: {
+                        ItemCard(item: item, unit: unit)
+                            .overlay(alignment: .topTrailing) {
+                                if unplaced.contains(item.uuid) {
+                                    Tag(text: "Not placed")
+                                        .padding(8)
+                                }
+                            }
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityHint("Opens the item to edit it")
+                }
             }
         }
     }
