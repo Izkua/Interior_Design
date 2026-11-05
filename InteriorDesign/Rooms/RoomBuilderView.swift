@@ -23,6 +23,14 @@ struct RoomBuilderView: View {
     /// Undo and redo for the advanced builder. Kept only while this screen
     /// is open.
     @State private var history = EditHistory<RoomOutline>()
+    /// "Room" (walls, doors, windows) or "Furniture" (where things stand).
+    @State private var page: RoomPage = .room
+
+    enum RoomPage: String, CaseIterable, Identifiable {
+        case room = "Room"
+        case furniture = "Furniture"
+        var id: String { rawValue }
+    }
 
     @AppStorage(SettingsKey.lockAngles) private var lockAngles = false
 
@@ -33,46 +41,19 @@ struct RoomBuilderView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // The plan stays pinned at the top while the form scrolls below.
-            AppCard(padding: 0) {
-                if isAdvanced {
-                    VStack(spacing: 0) {
-                        AdvancedRoomCanvas(
-                            room: room,
-                            selectedWall: $selectedWall,
-                            selectedFeatureID: $selectedFeatureID,
-                            unit: unit,
-                            lockAngles: lockAngles,
-                            willEdit: recordForUndo
-                        )
-                        .frame(height: 300)
-                        .clipped()
-                        Divider()
-                        advancedControls
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                } else {
-                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, unit: unit)
-                        .frame(height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                }
+            Picker("Show", selection: $page) {
+                ForEach(RoomPage.allCases) { Text($0.rawValue).tag($0) }
             }
+            .pickerStyle(.segmented)
             .padding(.horizontal, Theme.Space.md)
             .padding(.top, Theme.Space.sm)
+            .accessibilityLabel("Show the room's walls and doors, or its furniture")
 
-            ScrollView {
-                VStack(spacing: Theme.Space.md) {
-                    modeCard
-                    if isAdvanced {
-                        advancedCards
-                    } else {
-                        sizeCard
-                    }
-                    featuresCard
-                }
-                .padding(Theme.Space.md)
+            if page == .room {
+                roomPage
+            } else {
+                RoomFurnitureView(room: room)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(room.name)
@@ -132,6 +113,53 @@ struct RoomBuilderView: View {
         }
         .onDisappear {
             try? context.save()
+        }
+    }
+
+    /// Walls, corners, doors, windows, and outlets (what this screen was
+    /// before it had two pages).
+    private var roomPage: some View {
+        VStack(spacing: 0) {
+            // The plan stays pinned at the top while the form scrolls below.
+            AppCard(padding: 0) {
+                if isAdvanced {
+                    VStack(spacing: 0) {
+                        AdvancedRoomCanvas(
+                            room: room,
+                            selectedWall: $selectedWall,
+                            selectedFeatureID: $selectedFeatureID,
+                            unit: unit,
+                            lockAngles: lockAngles,
+                            willEdit: recordForUndo
+                        )
+                        .frame(height: 300)
+                        .clipped()
+                        Divider()
+                        advancedControls
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                } else {
+                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, unit: unit)
+                        .frame(height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                }
+            }
+            .padding(.horizontal, Theme.Space.md)
+            .padding(.top, Theme.Space.sm)
+
+            ScrollView {
+                VStack(spacing: Theme.Space.md) {
+                    modeCard
+                    if isAdvanced {
+                        advancedCards
+                    } else {
+                        sizeCard
+                    }
+                    featuresCard
+                }
+                .padding(Theme.Space.md)
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 

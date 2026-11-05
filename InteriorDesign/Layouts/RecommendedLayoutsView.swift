@@ -9,6 +9,12 @@ struct RecommendedLayoutsView: View {
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
     @State private var selectedRoomID: UUID?
+
+    /// Opens on this room (from a room's Furniture page); otherwise the
+    /// most recently edited one.
+    init(initialRoomID: UUID? = nil) {
+        _selectedRoomID = State(initialValue: initialRoomID)
+    }
     @State private var suggestions: [LayoutSuggestion] = []
     @State private var missing: [MissingPiece] = []
     @State private var isWorking = false
