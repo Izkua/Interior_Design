@@ -329,4 +329,29 @@ final class PhotoViewportTests: XCTestCase {
         XCTAssertEqual(view.nearestPoint(to: CGPoint(x: near.x + 10, y: near.y), in: points, within: 22), 1)
         XCTAssertNil(view.nearestPoint(to: CGPoint(x: near.x + 40, y: near.y), in: points, within: 22))
     }
+
+    func testPinchKeepsThePhotoSpotUnderTheFingers() {
+        let start = PhotoViewport(imageSize: photo, container: space, zoom: 1, pan: .zero)
+        let fingers = CGPoint(x: 300, y: 150)
+        let spot = start.imagePoint(fromScreen: fingers)
+        let next = start.zoomed(by: 3, around: fingers, movedBy: .zero)
+        XCTAssertEqual(next.zoom, 3)
+        let after = PhotoViewport(imageSize: photo, container: space, zoom: next.zoom, pan: next.pan).screenPoint(fromImage: spot)
+        XCTAssertEqual(after.x, fingers.x, accuracy: 0.5)
+        XCTAssertEqual(after.y, fingers.y, accuracy: 0.5)
+    }
+
+    func testTwoFingerDragMovesThePhoto() {
+        let start = PhotoViewport(imageSize: photo, container: space, zoom: 4, pan: .zero)
+        let next = start.zoomed(by: 1, around: CGPoint(x: 200, y: 200), movedBy: CGSize(width: 50, height: -30))
+        XCTAssertEqual(next.pan.width, 50, accuracy: 0.01)
+        XCTAssertEqual(next.pan.height, -30, accuracy: 0.01)
+    }
+
+    func testEdgeScrollOnlyNearTheEdges() {
+        XCTAssertEqual(PhotoViewport.edgeScroll(for: CGPoint(x: 200, y: 200), in: space), .zero)
+        XCTAssertEqual(PhotoViewport.edgeScroll(for: CGPoint(x: 395, y: 200), in: space), CGSize(width: -6, height: 0))
+        XCTAssertEqual(PhotoViewport.edgeScroll(for: CGPoint(x: 10, y: 5), in: space), CGSize(width: 6, height: 6))
+    }
 }
+

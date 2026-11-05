@@ -28,8 +28,7 @@ struct ReferenceMeasureView: View {
     @State private var zoomAtStart: CGFloat = 1
     @State private var pan: CGSize = .zero
     @State private var panAtStart: CGSize = .zero
-    /// Where the current touch began, and the point being dragged, if any.
-    @State private var touchStart: CGPoint?
+    /// The point being dragged, if any.
     @State private var dragging: Int?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
@@ -123,6 +122,8 @@ struct ReferenceMeasureView: View {
         }
         .padding(Theme.Space.md)
         .background(Theme.background.ignoresSafeArea())
+        // Dragging on the photo must never close the screen.
+        .interactiveDismissDisabled()
         .navigationTitle("Measure from photo")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: reference) { _, _ in taps = [] }
@@ -144,8 +145,25 @@ struct ReferenceMeasureView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .clipped()
             .contentShape(Rectangle())
-            .gesture(touchGesture(view), including: .all)
-            .simultaneousGesture(pinchGesture(view))
+            // One finger works on points; two fingers zoom and move the photo.
+            .overlay {
+                PhotoTouchLayer(
+                    oneFinger: { phase, location in oneFinger(phase, location, view) },
+                    twoFingers: { phase, scale, translation, center in twoFingers(phase, scale, translation, center, view) }
+                )
+            }
+            .overlay(alignment: .top) {
+                if showGestureHint {
+                    Text("Drag with one finger to place a point · Two fingers to move the photo")
+                        .font(Typography.caption)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(8)
+                        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: Theme.Radius.button))
+                        .padding(8)
+                        .allowsHitTesting(false)
+                }
+            }
             .overlay(alignment: .topLeading) { loupe(view) }
             .overlay(alignment: .bottomTrailing) { zoomButtons(view) }
             .accessibilityElement(children: .contain)
@@ -186,45 +204,68 @@ struct ReferenceMeasureView: View {
 
     // MARK: Touch: tap to place, drag a point to move it, drag elsewhere to pan
 
-    @GestureState private var fingerAt: CGPoint?
+    @State private var fingerAt: CGPoint?
+    /// Shown until the first touch, once per install.
+    @AppStorage("photoMeasure.gestureHintSeen") private var gestureHintSeen = false
+    private var showGestureHint: Bool { !gestureHintSeen }
 
-    private func touchGesture(_ view: PhotoViewport) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .updating($fingerAt) { value, state, _ in state = value.location }
-            .onChanged { value in
-                if touchStart == nil {
-                    touchStart = value.startLocation
-                    // Grab the nearest point within 22 pt (a 44 pt target).
-                    dragging = view.nearestPoint(to: value.startLocation, in: taps, within: 22)
-                    panAtStart = pan
-                }
-                if let index = dragging {
-                    taps[index] = view.imagePoint(fromScreen: value.location)
-                } else if zoom > 1, hypot(value.translation.width, value.translation.height) > 10 {
-                    pan = view.clamped(CGSize(width: panAtStart.width + value.translation.width,
-                                              height: panAtStart.height + value.translation.height))
-                }
+    /// One finger: touching down starts a point (or grabs the nearest one),
+    /// the magnifier follows the finger, lifting places it. Never pans.
+    private func oneFinger(_ phase: TouchPhase, _ location: CGPoint, _ view: PhotoViewport) {
+        switch phase {
+        case .began:
+            gestureHintSeen = true
+            dragging = view.nearestPoint(to: location, in: taps, within: 22)
+            fingerAt = location
+        case .moved:
+            fingerAt = location
+            // Near the edge while zoomed in: slide the photo a little so
+            // you can keep going.
+            let step = PhotoViewport.edgeScroll(for: location, in: view.container)
+            if zoom > 1, step != .zero {
+                pan = view.clamped(CGSize(width: pan.width + step.width, height: pan.height + step.height))
             }
-            .onEnded { value in
-                defer { touchStart = nil; dragging = nil; panAtStart = pan }
-                guard dragging == nil else { return }
-                let moved = hypot(value.translation.width, value.translation.height)
-                guard moved <= 10, taps.count < steps.count, view.isOnPhoto(value.location) else { return }
-                taps.append(view.imagePoint(fromScreen: value.location))
+            if let index = dragging {
+                taps[index] = viewport(view.container).imagePoint(fromScreen: location)
             }
+        case .ended:
+            let current = viewport(view.container)
+            if let index = dragging {
+                taps[index] = current.imagePoint(fromScreen: location)
+            } else if taps.count < steps.count, current.isOnPhoto(location) {
+                taps.append(current.imagePoint(fromScreen: location))
+            }
+            fingerAt = nil
+            dragging = nil
+        case .cancelled:
+            fingerAt = nil
+            dragging = nil
+        }
     }
 
-    private func pinchGesture(_ view: PhotoViewport) -> some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                dragging = nil
-                zoom = min(max(zoomAtStart * value.magnification, 1), 8)
-                pan = PhotoViewport(imageSize: image.size, container: view.container, zoom: zoom, pan: pan).clamped(pan)
-            }
-            .onEnded { _ in
+    /// Two fingers: pinch to zoom around where the fingers are, drag to move.
+    private func twoFingers(_ phase: TouchPhase, _ scale: CGFloat, _ translation: CGSize, _ center: CGPoint, _ view: PhotoViewport) {
+        switch phase {
+        case .began:
+            gestureHintSeen = true
+            zoomAtStart = zoom
+            panAtStart = pan
+        case .moved, .ended:
+            let start = PhotoViewport(imageSize: image.size, container: view.container, zoom: zoomAtStart, pan: panAtStart)
+            let next = start.zoomed(by: scale, around: center, movedBy: translation)
+            zoom = next.zoom
+            pan = next.pan
+            if phase == .ended {
                 zoomAtStart = zoom
                 panAtStart = pan
             }
+        case .cancelled:
+            break
+        }
+    }
+
+    private func viewport(_ container: CGSize) -> PhotoViewport {
+        PhotoViewport(imageSize: image.size, container: container, zoom: zoom, pan: pan)
     }
 
     /// A magnified circle above the finger while placing or moving a
@@ -373,11 +414,174 @@ struct PhotoViewport {
             .min { $0.1 < $1.1 }?.0
     }
 
+    /// The new zoom and pan for a two-finger gesture that started with
+    /// this view: the photo point under the fingers' starting middle stays
+    /// under the fingers as they pinch and move.
+    func zoomed(by scale: CGFloat, around anchor: CGPoint, movedBy translation: CGSize) -> (zoom: CGFloat, pan: CGSize) {
+        let newZoom = min(max(zoom * scale, 1), 8)
+        let held = imagePoint(fromScreen: anchor)
+        let target = CGPoint(x: anchor.x + translation.width, y: anchor.y + translation.height)
+        let s = fitScale * newZoom
+        let centerX = target.x - (held.x - imageSize.width / 2) * s
+        let centerY = target.y - (held.y - imageSize.height / 2) * s
+        let proposed = CGSize(width: centerX - container.width / 2, height: centerY - container.height / 2)
+        let next = PhotoViewport(imageSize: imageSize, container: container, zoom: newZoom, pan: proposed)
+        return (newZoom, next.clamped(proposed))
+    }
+
+    /// How far to slide the photo when a finger is near an edge (within
+    /// 40 pt), so a point can be dragged past what's on screen.
+    static func edgeScroll(for location: CGPoint, in container: CGSize, margin: CGFloat = 40, speed: CGFloat = 6) -> CGSize {
+        var step = CGSize.zero
+        if location.x < margin { step.width = speed } else if location.x > container.width - margin { step.width = -speed }
+        if location.y < margin { step.height = speed } else if location.y > container.height - margin { step.height = -speed }
+        return step
+    }
+
     /// A pan that keeps the zoomed photo covering the view (no dragging it away).
     func clamped(_ proposed: CGSize) -> CGSize {
         let maxX = max(fitted.width * zoom - container.width, 0) / 2
         let maxY = max(fitted.height * zoom - container.height, 0) / 2
         return CGSize(width: min(max(proposed.width, -maxX), maxX), height: min(max(proposed.height, -maxY), maxY))
+    }
+}
+
+enum TouchPhase { case began, moved, ended, cancelled }
+
+/// Touch handling for the photo, in UIKit because SwiftUI (iOS 17) can't
+/// tell a one-finger drag from a two-finger one. One finger is reported
+/// from the moment it touches down; a second finger cancels it and
+/// switches to zooming and moving the photo.
+struct PhotoTouchLayer: UIViewRepresentable {
+    let oneFinger: (TouchPhase, CGPoint) -> Void
+    let twoFingers: (TouchPhase, CGFloat, CGSize, CGPoint) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let c = context.coordinator
+
+        let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.press(_:)))
+        press.minimumPressDuration = 0
+        press.allowableMovement = .greatestFiniteMagnitude
+        press.numberOfTouchesRequired = 1
+        press.delegate = c
+        let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
+        pinch.delegate = c
+        let pan = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:)))
+        pan.minimumNumberOfTouches = 2
+        pan.maximumNumberOfTouches = 2
+        pan.delegate = c
+        [press, pinch, pan].forEach(view.addGestureRecognizer)
+        c.blockOutsideGestures(on: view)
+        c.press = press
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.oneFinger = oneFinger
+        context.coordinator.twoFingers = twoFingers
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var oneFinger: (TouchPhase, CGPoint) -> Void = { _, _ in }
+        var twoFingers: (TouchPhase, CGFloat, CGSize, CGPoint) -> Void = { _, _, _, _ in }
+        weak var press: UILongPressGestureRecognizer?
+        private var scale: CGFloat = 1
+        private var translation: CGSize = .zero
+        private var center: CGPoint = .zero
+        private var twoActive = false
+
+        @objc func press(_ g: UILongPressGestureRecognizer) {
+            let location = g.location(in: g.view)
+            switch g.state {
+            case .began: oneFinger(.began, location)
+            case .changed:
+                // A second finger landed: this becomes a zoom, not a point.
+                if g.numberOfTouches > 1 { cancelPress(); return }
+                oneFinger(.moved, location)
+            case .ended: oneFinger(.ended, location)
+            case .cancelled, .failed: oneFinger(.cancelled, location)
+            default: break
+            }
+        }
+
+        private func cancelPress() {
+            guard let press, press.isEnabled else { return }
+            oneFinger(.cancelled, .zero)
+            press.isEnabled = false
+            press.isEnabled = true
+        }
+
+        @objc func pinch(_ g: UIPinchGestureRecognizer) {
+            if g.state == .began || g.state == .changed { scale = g.scale }
+            report(g)
+        }
+
+        @objc func pan(_ g: UIPanGestureRecognizer) {
+            if g.state == .began || g.state == .changed {
+                let t = g.translation(in: g.view)
+                translation = CGSize(width: t.x, height: t.y)
+            }
+            report(g)
+        }
+
+        private func report(_ g: UIGestureRecognizer) {
+            switch g.state {
+            case .began where !twoActive:
+                cancelPress()
+                twoActive = true
+                scale = 1
+                translation = .zero
+                center = g.location(in: g.view)
+                twoFingers(.began, 1, .zero, center)
+            case .began, .changed:
+                guard twoActive else { return }
+                twoFingers(.moved, scale, translation, center)
+            case .ended, .cancelled, .failed:
+                guard twoActive else { return }
+                twoActive = false
+                twoFingers(.ended, scale, translation, center)
+            default: break
+            }
+        }
+
+        /// Makes the sheet's and navigation's pan gestures above this view
+        /// wait for ours, once the view is in the window.
+        func blockOutsideGestures(on view: UIView) {
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view, let press = self.press else { return }
+                var ancestor = view.superview
+                while let current = ancestor {
+                    for other in current.gestureRecognizers ?? [] where other is UIPanGestureRecognizer && !self.ours.contains(other) {
+                        other.require(toFail: press)
+                    }
+                    ancestor = current.superview
+                }
+            }
+        }
+
+        private var ours: [UIGestureRecognizer] { press.map { $0.view?.gestureRecognizers ?? [] } ?? [] }
+
+        /// Our own gestures work together (a second finger turns a point
+        /// into a zoom). Anything else, like the sheet's pull-down to close
+        /// or the swipe back, doesn't run alongside them.
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            ours.contains(other)
+        }
+
+        /// Touches on the photo belong to the photo: the sheet's pull-down
+        /// and the screen's swipe back have to wait for our gestures to
+        /// fail, which they don't while a finger is on the photo.
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            false
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRequireFailureOf other: UIGestureRecognizer) -> Bool {
+            false
+        }
     }
 }
 
