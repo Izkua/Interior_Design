@@ -17,7 +17,7 @@
 
 ## What stays on your phone
 
-Rooms, wall measurements, doors and windows, furniture, layouts, wishlist items, and the photos you add to furniture are saved only on your device. When the app suggests the type of a piece of furniture from a photo, that's done by Apple's on-device image recognition; the photo is not uploaded. Room scanning on iPhones with LiDAR uses Apple's RoomPlan, which also runs on the device.
+Rooms, wall measurements, doors and windows, furniture, layouts, wishlist items, and the photos you add to furniture are saved only on your device. When the app suggests the type of a piece of furniture from a photo, that's done by Apple's on-device image recognition; the photo is not uploaded. Room scanning on iPhones with LiDAR uses Apple's RoomPlan, which also runs on the device. If you measure furniture against a card in the photo, the app hides the card (pixelates it) in the photo it saves, and the original photo isn't kept. Furniture photos are only sent off your device if you use an AI feature that needs them.
 
 Deleting the app deletes this data. In v1 it is not synced or backed up by us.
 

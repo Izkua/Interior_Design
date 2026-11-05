@@ -35,11 +35,11 @@ final class CaptureTests: XCTestCase {
 
     // MARK: Reference-object scale
 
-    func testCreditCardScale() throws {
+    func testWalletCardScale() throws {
         // A card spanning 100 points means 0.0856 cm per point.
         let scale = try XCTUnwrap(ReferenceScale(
             referenceStart: CGPoint(x: 0, y: 0), referenceEnd: CGPoint(x: 100, y: 0),
-            knownLengthCm: ReferenceObject.creditCard.lengthCm!
+            knownLengthCm: ReferenceObject.walletCard.lengthCm!
         ))
         // A sofa 2,000 points wide is 171.2 cm.
         XCTAssertEqual(scale.length(from: CGPoint(x: 0, y: 50), to: CGPoint(x: 2000, y: 50)) ?? 0, 171.2, accuracy: 0.001)
@@ -63,7 +63,7 @@ final class CaptureTests: XCTestCase {
     }
 
     func testReferenceLengths() {
-        XCTAssertEqual(ReferenceObject.creditCard.lengthCm, 8.56)
+        XCTAssertEqual(ReferenceObject.walletCard.lengthCm, 8.56)
         XCTAssertEqual(ReferenceObject.a4Paper.lengthCm, 29.7)
         XCTAssertEqual(ReferenceObject.letterPaper.lengthCm ?? 0, 11 * 2.54, accuracy: 0.001)
         XCTAssertNil(ReferenceObject.custom.lengthCm)
@@ -212,3 +212,121 @@ final class TopPlaneTests: XCTestCase {
     }
 }
 
+
+final class PhotoMeasuringTests: XCTestCase {
+    /// Projects a point on a surface into a photo with a made-up camera
+    /// tilted 35°, to test sizes from an angled photo.
+    private func project(_ x: Double, _ y: Double) -> CGPoint {
+        // Plane point (x, y) in cm → photo, a fixed perspective transform.
+        let h: [Double] = [9.0, 1.5, 120, -0.8, 7.0, 300, 0.004, -0.0015, 1]
+        let w = h[6] * x + h[7] * y + h[8]
+        return CGPoint(x: (h[0] * x + h[1] * y + h[2]) / w, y: (h[3] * x + h[4] * y + h[5]) / w)
+    }
+
+    func testAngledPhotoStillGivesTheRightSize() throws {
+        // A card at the origin, and a 50 × 80 cm chair front on the same surface.
+        let card = [project(0, 0), project(8.56, 0), project(8.56, 5.398), project(0, 5.398)]
+        let scale = try XCTUnwrap(PlaneScale(corners: card, sizeCm: (8.56, 5.398)))
+        let width = try XCTUnwrap(scale.length(from: project(-10, 20), to: project(40, 20)))
+        let height = try XCTUnwrap(scale.length(from: project(-10, 20), to: project(-10, 100)))
+        XCTAssertEqual(width, 50, accuracy: 0.1)
+        XCTAssertEqual(height, 80, accuracy: 0.1)
+    }
+
+    func testCornersCanStartAnywhereAndGoEitherWay() throws {
+        let card = [project(8.56, 5.398), project(8.56, 0), project(0, 0), project(0, 5.398)]
+        let scale = try XCTUnwrap(PlaneScale(corners: card, sizeCm: (8.56, 5.398)))
+        XCTAssertEqual(try XCTUnwrap(scale.length(from: project(0, 30), to: project(60, 30))), 60, accuracy: 0.1)
+    }
+
+    func testStraightOnCardIsNotFlaggedAsAngled() throws {
+        let square = [CGPoint(x: 100, y: 100), CGPoint(x: 185.6, y: 100), CGPoint(x: 185.6, y: 153.98), CGPoint(x: 100, y: 153.98)]
+        XCTAssertFalse(try XCTUnwrap(PlaneScale(corners: square, sizeCm: (8.56, 5.398))).looksAngled)
+        // Photographed steeply from below: the far edge looks much shorter.
+        let skewed = [CGPoint(x: 100, y: 100), CGPoint(x: 300, y: 100), CGPoint(x: 260, y: 160), CGPoint(x: 140, y: 160)]
+        XCTAssertTrue(try XCTUnwrap(PlaneScale(corners: skewed, sizeCm: (8.56, 5.398))).looksAngled)
+    }
+
+    func testCardIsHiddenInTheSavedPhoto() throws {
+        // A photo with fine detail (a checkerboard) where the card sits.
+        let size = CGSize(width: 400, height: 300)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let original = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor.black.setFill()
+            for x in stride(from: 0, to: 400, by: 2) {
+                for y in stride(from: 0, to: 300, by: 2) where (x + y) % 4 == 0 {
+                    context.fill(CGRect(x: x, y: y, width: 2, height: 2))
+                }
+            }
+        }
+        let corners = [CGPoint(x: 150, y: 120), CGPoint(x: 236, y: 120), CGPoint(x: 236, y: 174), CGPoint(x: 150, y: 174)]
+        let region = try XCTUnwrap(CardBlur.region(corners: corners, imageSize: size))
+        for corner in corners { XCTAssertTrue(region.contains(corner)) }
+
+        let hidden = CardBlur.hidingCard(in: original, corners: corners)
+        let a = try XCTUnwrap(pixels(original)), b = try XCTUnwrap(pixels(hidden))
+        // Inside the card's area the detail is gone; far away it's untouched.
+        XCTAssertNotEqual(row(a, y: 147, from: 180, to: 200), row(b, y: 147, from: 180, to: 200))
+        XCTAssertEqual(row(a, y: 10, from: 10, to: 40), row(b, y: 10, from: 10, to: 40))
+    }
+
+    private func pixels(_ image: UIImage) -> [UInt8]? {
+        guard let cg = image.cgImage else { return nil }
+        var data = [UInt8](repeating: 0, count: cg.width * cg.height)
+        let gray = CGColorSpaceCreateDeviceGray()
+        guard let context = CGContext(data: &data, width: cg.width, height: cg.height, bitsPerComponent: 8,
+                                      bytesPerRow: cg.width, space: gray, bitmapInfo: 0) else { return nil }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        return data
+    }
+
+    private func row(_ data: [UInt8], y: Int, from: Int, to: Int) -> [UInt8] {
+        Array(data[(y * 400 + from)..<(y * 400 + to)])
+    }
+}
+
+final class PhotoViewportTests: XCTestCase {
+    private let photo = CGSize(width: 4000, height: 3000)
+    private let space = CGSize(width: 400, height: 400)
+
+    func testRoundTripAtAnyZoomAndPan() {
+        for (zoom, pan) in [(CGFloat(1), CGSize.zero), (3, CGSize(width: 120, height: -80)), (8, CGSize(width: -500, height: 300))] {
+            let view = PhotoViewport(imageSize: photo, container: space, zoom: zoom, pan: pan)
+            let corner = CGPoint(x: 1234, y: 2100)
+            let back = view.imagePoint(fromScreen: view.screenPoint(fromImage: corner))
+            XCTAssertEqual(back.x, corner.x, accuracy: 0.01)
+            XCTAssertEqual(back.y, corner.y, accuracy: 0.01)
+        }
+    }
+
+    func testZoomingMagnifiesAroundTheMiddle() {
+        let whole = PhotoViewport(imageSize: photo, container: space, zoom: 1, pan: .zero)
+        let zoomed = PhotoViewport(imageSize: photo, container: space, zoom: 4, pan: .zero)
+        // The photo's middle stays in the middle of the view.
+        XCTAssertEqual(zoomed.screenPoint(fromImage: CGPoint(x: 2000, y: 1500)), CGPoint(x: 200, y: 200))
+        // 100 photo points apart: 4 times as far apart on screen when zoomed 4×.
+        let a = CGPoint(x: 2000, y: 1500), b = CGPoint(x: 2100, y: 1500)
+        XCTAssertEqual(zoomed.screenPoint(fromImage: b).x - zoomed.screenPoint(fromImage: a).x,
+                       4 * (whole.screenPoint(fromImage: b).x - whole.screenPoint(fromImage: a).x), accuracy: 0.001)
+    }
+
+    func testPanCantDragThePhotoAway() {
+        let view = PhotoViewport(imageSize: photo, container: space, zoom: 2, pan: .zero)
+        let clamped = view.clamped(CGSize(width: 5000, height: -5000))
+        // Fitted 400 × 300, zoomed 2× = 800 × 600: can move 200 sideways, 100 up or down.
+        XCTAssertEqual(clamped.width, 200)
+        XCTAssertEqual(clamped.height, -100)
+        XCTAssertEqual(PhotoViewport(imageSize: photo, container: space, zoom: 1, pan: .zero).clamped(CGSize(width: 50, height: 50)), .zero)
+    }
+
+    func testGrabsTheNearestPointWithinReach() {
+        let view = PhotoViewport(imageSize: photo, container: space, zoom: 1, pan: .zero)
+        let points = [CGPoint(x: 1000, y: 1000), CGPoint(x: 3000, y: 2000)]
+        let near = view.screenPoint(fromImage: points[1])
+        XCTAssertEqual(view.nearestPoint(to: CGPoint(x: near.x + 10, y: near.y), in: points, within: 22), 1)
+        XCTAssertNil(view.nearestPoint(to: CGPoint(x: near.x + 40, y: near.y), in: points, within: 22))
+    }
+}

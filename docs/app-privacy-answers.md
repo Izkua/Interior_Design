@@ -27,6 +27,6 @@ Based on what the code sends as of October 2026. Re-check after any change, espe
 Location, contacts, health, financial info, browsing history, sensitive info, purchases (no in-app purchases in v1), and diagnostics (unless you add a crash-reporting tool later).
 
 ## Points to double-check before submitting
-- Furniture photos and room data stay on the device, so they aren't "collected". Confirm `BackendConfig.backendLabelingEnabled` and `roomScanEnabled` are still `false`.
+- Furniture photos and room data stay on the device, so they aren't "collected". When a wallet-size card is used to measure, the card is pixelated in the saved photo and the original is discarded. Confirm `BackendConfig.backendLabelingEnabled` and `roomScanEnabled` are still `false`.
 - Turning on Visualize starts sending room photos to the backend and the image provider. Update this form and the privacy policy at the same time.
 - Retailer pages open in Safari View Controller; the retailer's data collection isn't yours to declare.

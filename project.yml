@@ -34,7 +34,7 @@ targets:
         INFOPLIST_FILE: InteriorDesign/Info.plist
         PRODUCT_NAME: InteriorDesign
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "7"
+        CURRENT_PROJECT_VERSION: "9"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: YES

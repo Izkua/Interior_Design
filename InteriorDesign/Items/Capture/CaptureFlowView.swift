@@ -34,9 +34,12 @@ struct CaptureFlowView: View {
                     case .size: sizeChoice
                     case .reference:
                         if let image {
-                            ReferenceMeasureView(image: image) { width, height in
-                                draft.widthCm = width.rounded()
-                                draft.heightCm = height.rounded()
+                            ReferenceMeasureView(image: image) { width, depth, height, savedPhoto in
+                                if let width { draft.widthCm = width.rounded() }
+                                if let depth { draft.depthCm = depth.rounded() }
+                                if let height { draft.heightCm = height.rounded() }
+                                // Keep only the copy with the card hidden.
+                                draft.photoData = PhotoResizer.jpeg(from: savedPhoto.jpegData(compressionQuality: 0.9) ?? Data())
                                 method = .reference
                                 // Swap the measuring screen for the confirm screen.
                                 path = [.size, .confirm]
@@ -180,7 +183,7 @@ struct CaptureFlowView: View {
                         showAR = true
                     }
                 }
-                option("Use something in the photo", "Tap a credit card, paper, or door in the photo, then the furniture.", "creditcard") {
+                option("Use something in the photo", "Tap a wallet-size card, paper, or door in the photo, then the furniture.", "creditcard") {
                     path.append(.reference)
                 }
                 option("Type the sizes", "Already measured it with a tape? Enter width, depth, and height.", "keyboard") {

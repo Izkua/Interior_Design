@@ -167,7 +167,7 @@ Without LiDAR, size from a single photo is an estimate. Every result below must 
 
 - [ ] Camera permission flow with a clear reason string, and a graceful screen if the user denies access.
 - [ ] Label the item by type. Test two approaches on your Week 1 test photos and keep the better one: Apple's on-device Vision image classification (free, offline, may be coarse) or a vision model through your backend (more accurate, costs per call).
-- [ ] Size: check RoomCaptureSession.isSupported at launch. On LiDAR iPhones use RoomPlan for measured sizes. On the rest, use this order: (1) AR measure using ARKit plane detection, which works without LiDAR; (2) a reference object in the photo (a credit card, a sheet of paper, or a standard door) to set scale; (3) the type's default size.
+- [ ] Size: check RoomCaptureSession.isSupported at launch. On LiDAR iPhones use RoomPlan for measured sizes. On the rest, use this order: (1) AR measure using ARKit plane detection, which works without LiDAR; (2) a reference object in the photo (a wallet-size card such as a gift card, a sheet of paper, or a standard door) to set scale; (3) the type's default size.
 - [ ] Confirm screen showing the photo, the detected type, and the estimated width, depth, and height, all editable before saving.
 - [ ] Measure accuracy on your 5 to 10 real pieces and record the typical error. Show a plain-language confidence note to the user.
 

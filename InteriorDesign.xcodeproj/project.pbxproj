@@ -43,6 +43,7 @@
 		6E8BC406F9EEBC399BD7C25E /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 341851CA35FE0F418653DD2D /* LayoutEngine.swift */; };
 		71F19FAFDBBFA90C97E4FEE0 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAC2D29348F1D605CC74574 /* LayoutEngineTests.swift */; };
 		767ECB40E647A775104C209A /* ReferenceMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */; };
+		82AC5DD5FFC04EA378A7B131 /* CardBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC670766318ADD034D66DA4 /* CardBlur.swift */; };
 		8337B70C282BDC2CBA15AF95 /* VisualizeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1DA46AA4EBA27A44A7825C /* VisualizeService.swift */; };
 		8F7F40E4ABAEF05846A22866 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE9CD3CDFB7E2C5235C648C /* RootView.swift */; };
 		9243E36D2A517EE47A51B163 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD3A750F54CDC31126F86494 /* AppleSignIn.swift */; };
@@ -126,6 +127,7 @@
 		2B117F6928C4FE22AF827292 /* CurrentItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentItemsView.swift; sourceTree = "<group>"; };
 		2DADB90BB67F8CAFA48F4350 /* LayoutModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutModel.swift; sourceTree = "<group>"; };
 		2F6F10A41371D240FCE7CD3B /* ProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSheet.swift; sourceTree = "<group>"; };
+		2FC670766318ADD034D66DA4 /* CardBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBlur.swift; sourceTree = "<group>"; };
 		341851CA35FE0F418653DD2D /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
 		371093B3CF6A9AD323C89927 /* ItemLabeling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemLabeling.swift; sourceTree = "<group>"; };
 		396C6287392C535D282D6B69 /* EditHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHistory.swift; sourceTree = "<group>"; };
@@ -296,6 +298,7 @@
 				2637B0A02D17D02AEA77C75A /* ARMeasureView.swift */,
 				0E4409AB17598462D7EC8660 /* CameraAccess.swift */,
 				AC57A5B40410279775B7BA10 /* CaptureFlowView.swift */,
+				2FC670766318ADD034D66DA4 /* CardBlur.swift */,
 				371093B3CF6A9AD323C89927 /* ItemLabeling.swift */,
 				E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */,
 				F23436AC891BD40FB3136369 /* ReferenceScale.swift */,
@@ -553,6 +556,7 @@
 				BB6EF790A5F341E8318E63C0 /* BackendConfig.swift in Sources */,
 				97598CAB876D8A502B747E69 /* CameraAccess.swift in Sources */,
 				59BC929273A9B38DC05C3E09 /* CaptureFlowView.swift in Sources */,
+				82AC5DD5FFC04EA378A7B131 /* CardBlur.swift in Sources */,
 				67AED42053F7D1D8CB04203A /* CatalogProduct.swift in Sources */,
 				FB0831C80BE8B494AF89A86A /* CatalogRanking.swift in Sources */,
 				9D3BEED9F358FAE800BBB6E8 /* CatalogService.swift in Sources */,
@@ -728,7 +732,7 @@
 				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -760,7 +764,7 @@
 				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
