@@ -81,6 +81,8 @@ final class Item {
     var depthCm: Double
     var heightCm: Double
     @Attribute(.externalStorage) var photoData: Data?
+    /// A 3D model of the piece (USDZ), from a LiDAR scan or imported.
+    @Attribute(.externalStorage) var modelData: Data? = nil
     var source: ItemSource
     /// True for things that should not move, like a built-in wardrobe.
     var isFixed: Bool

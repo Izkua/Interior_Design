@@ -17,6 +17,8 @@ struct ARPiece: Identifiable, Equatable {
     var photoData: Data?
     /// Where to fetch its photo from (catalog products).
     var imageURL: URL?
+    /// A real 3D model of it (USDZ), if the person scanned or imported one.
+    var modelData: Data?
 
     var parts: [FurnitureShape.Part] {
         FurnitureShape.parts(type: type, widthCm: widthCm, depthCm: depthCm, heightCm: heightCm)
@@ -33,7 +35,8 @@ extension ARPiece {
             colors: item.photoData.flatMap(UIImage.init(data:)).map { PhotoColors.colors(from: $0, type: item.type) }
                 ?? .fallback(for: item.type),
             isEstimated: item.isEstimated,
-            photoData: item.photoData
+            photoData: item.photoData,
+            modelData: item.modelData
         )
     }
 

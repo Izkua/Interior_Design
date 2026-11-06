@@ -66,7 +66,7 @@ struct ARPlaceView: View {
             Spacer()
             if controller.hasPhotos {
                 Picker("Show pieces as", selection: $controller.look) {
-                    Text("Photo").tag(ARPlaceController.Look.photo)
+                    Text("Real").tag(ARPlaceController.Look.photo)
                     Text("Shape").tag(ARPlaceController.Look.shape)
                 }
                 .pickerStyle(.segmented)
@@ -219,6 +219,8 @@ final class ARPlaceController: NSObject {
     @ObservationIgnored private var aim: simd_float4x4?
     /// Each piece's cut-out photo, once it's ready.
     @ObservationIgnored private var cutouts: [UUID: CGImage] = [:]
+    /// Each piece's real 3D model, if it has one.
+    @ObservationIgnored private var models: [UUID: Entity] = [:]
 
     func makeView() -> ARView {
         BillboardTag.registerComponent()
@@ -254,7 +256,12 @@ final class ARPlaceController: NSObject {
         let wasEmpty = pending.isEmpty
         pending.append(contentsOf: pieces)
         if wasEmpty, let first = pending.first { showFootprint(for: first) }
-        for piece in pieces where cutouts[piece.id] == nil {
+        for piece in pieces where cutouts[piece.id] == nil && models[piece.id] == nil {
+            if let data = piece.modelData, let model = Self.loadModel(data) {
+                // A real 3D model beats a cut-out photo.
+                addModel(model, to: piece.id)
+                continue
+            }
             Task { [weak self] in
                 guard let photo = await piece.loadPhoto() else { return }
                 // Saved items were colored from their photo already.
@@ -277,6 +284,9 @@ final class ARPlaceController: NSObject {
         if let cutout = cutouts[original] {
             cutouts[copy.id] = cutout
         }
+        if let model = models[original] {
+            models[copy.id] = model
+        }
         queue([copy])
     }
 
@@ -284,7 +294,11 @@ final class ARPlaceController: NSObject {
         guard let aim, let arView, !pending.isEmpty else { return }
         let piece = pending.removeFirst()
         let entity = Self.makeEntity(for: piece)
-        if let cutout = cutouts[piece.id] { Self.addPhoto(cutout, of: piece, to: entity) }
+        if let model = models[piece.id] {
+            Self.addModel(model, of: piece, to: entity)
+        } else if let cutout = cutouts[piece.id] {
+            Self.addPhoto(cutout, of: piece, to: entity)
+        }
         let anchor = AnchorEntity(world: aim)
         anchor.addChild(entity)
         arView.scene.addAnchor(anchor)
@@ -351,6 +365,16 @@ final class ARPlaceController: NSObject {
         hasPhotos = true
         if let entry = placed[id], entry.entity.findEntity(named: "photo") == nil {
             Self.addPhoto(cutout, of: entry.piece, to: entry.entity)
+            applyLook()
+        }
+    }
+
+    private func addModel(_ model: Entity, to id: UUID) {
+        models[id] = model
+        hasPhotos = true
+        if let entry = placed[id] {
+            entry.entity.findEntity(named: "photo")?.removeFromParent()
+            Self.addModel(model, of: entry.piece, to: entry.entity)
             applyLook()
         }
     }
@@ -478,6 +502,42 @@ final class ARPlaceController: NSObject {
         }
         photo.name = "photo"
         root.addChild(photo)
+    }
+
+    /// Opens a USDZ model. Nil if the file can't be read.
+    static func loadModel(_ data: Data) -> Entity? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("piece-\(UUID().uuidString).usdz")
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard (try? data.write(to: url)) != nil else { return nil }
+        return try? Entity.load(contentsOf: url)
+    }
+
+    /// The model's own size in meters (width, height, depth), or nil if it's empty.
+    static func modelSize(_ data: Data) -> simd_float3? {
+        guard let model = loadModel(data) else { return nil }
+        let extents = model.visualBounds(relativeTo: nil).extents
+        return extents.min() > 0 ? extents : nil
+    }
+
+    /// Adds the piece's 3D model, standing on the floor in the middle of
+    /// its footprint and sized to fit its saved size.
+    static func addModel(_ model: Entity, of piece: ARPiece, to root: Entity) {
+        let copy = model.clone(recursive: true)
+        let bounds = copy.visualBounds(relativeTo: nil)
+        let fit = ModelFit.fit(
+            extents: bounds.extents,
+            target: [Float(piece.widthCm / 100), Float(piece.heightCm / 100), Float(piece.depthCm / 100)]
+        )
+        // Bottom-middle of the model at the origin.
+        copy.position -= [bounds.center.x, bounds.min.y, bounds.center.z]
+        let sized = Entity()
+        sized.addChild(copy)
+        sized.scale = simd_float3(repeating: fit.scale)
+        if fit.turned { sized.orientation = simd_quatf(angle: .pi / 2, axis: [0, 1, 0]) }
+        let holder = Entity()
+        holder.name = "photo"
+        holder.addChild(sized)
+        root.addChild(holder)
     }
 
     static func paint(_ root: Entity, _ colors: FurnitureColors) {

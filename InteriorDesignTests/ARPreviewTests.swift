@@ -110,4 +110,28 @@ final class ARPreviewTests: XCTestCase {
         XCTAssertEqual(tall.height, 1.5, accuracy: 0.001)
         XCTAssertEqual(tall.width, 0.3, accuracy: 0.001)
     }
+
+    // MARK: Fitting a 3D model
+
+    func testTrueSizeScanKeepsItsSize() {
+        let fit = ModelFit.fit(extents: [2, 0.85, 0.9], target: [2, 0.85, 0.9])
+        XCTAssertEqual(fit.scale, 1, accuracy: 0.001)
+        XCTAssertFalse(fit.turned)
+    }
+
+    func testTinyModelFromPhotosIsScaledUpEvenly() {
+        // A model built at the wrong scale (1/100) comes up to the saved size.
+        let fit = ModelFit.fit(extents: [0.02, 0.0085, 0.009], target: [2, 0.85, 0.9])
+        XCTAssertEqual(fit.scale, 100, accuracy: 0.5)
+    }
+
+    func testSidewaysModelIsTurnedAndNeverBiggerThanSaved() {
+        // Long side along z, but the saved width is the long side.
+        let fit = ModelFit.fit(extents: [0.9, 0.85, 2], target: [2, 0.85, 0.9])
+        XCTAssertTrue(fit.turned)
+        XCTAssertEqual(fit.scale, 1, accuracy: 0.001)
+        // Taller than saved: shrinks to the saved height.
+        let tall = ModelFit.fit(extents: [2, 1.7, 0.9], target: [2, 0.85, 0.9])
+        XCTAssertEqual(tall.scale, 0.5, accuracy: 0.001)
+    }
 }
