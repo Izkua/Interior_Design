@@ -22,6 +22,7 @@ struct ScanRoomView: View {
     @State private var errorMessage: String?
     @State private var showCamera = false
     @State private var selection: PhotosPickerItem?
+    @State private var showTrace = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -70,6 +71,13 @@ struct ScanRoomView: View {
                 ToolbarItem(placement: .topBarTrailing) { Tag(text: "Beta") }
             }
         }
+        // Full screen, so dragging around the room can't pull a sheet down.
+        .fullScreenCover(isPresented: $showTrace) {
+            ARRoomTraceView { result in
+                draft = result
+                stage = .review
+            }
+        }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { photo in
                 showCamera = false
@@ -104,6 +112,15 @@ struct ScanRoomView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
 
+                if ARMeasure.isAvailable {
+                    PrimaryButton(title: "Trace room with AR", systemImage: "point.topleft.down.to.point.bottomright.curvepath",
+                                  style: RoomPlanScan.isAvailable ? .tinted : .filled) { showTrace = true }
+                    Text("Point at each corner where a wall meets the floor, going around the room. Works on any iPhone; about 1–2 in per wall in good light.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 if photoScanAvailable {
                     PrimaryButton(title: "Scan with photos", systemImage: "photo.stack", style: RoomPlanScan.isAvailable ? .tinted : .filled) {
                         stage = .measure
@@ -115,7 +132,7 @@ struct ScanRoomView: View {
                             .foregroundStyle(Theme.danger)
                     }
                     #endif
-                } else if !RoomPlanScan.isAvailable {
+                } else if !RoomPlanScan.isAvailable && !ARMeasure.isAvailable {
                     AppCard {
                         VStack(alignment: .leading, spacing: Theme.Space.sm) {
                             Label("Scanning needs a LiDAR iPhone for now", systemImage: "clock")
@@ -282,11 +299,15 @@ struct ScanRoomView: View {
 
     // MARK: Review
 
+    @State private var straightenCorners = true
+
     private var review: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
-                if let draft {
-                    DraftPreview(draft: draft, unit: unit)
+                if let original = draft {
+                    let straight = RoomStraightener.straightened(original)
+                    let draft = straightenCorners ? (straight ?? original) : original
+                    DraftPreview(draft: draft, unit: unit, before: straightenCorners && straight != nil ? original.corners : nil)
                         .frame(height: 300)
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                     let unsure = draft.uncertainWalls.count
@@ -296,6 +317,22 @@ struct ScanRoomView: View {
                         .font(Typography.body)
                         .foregroundStyle(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if straight != nil {
+                        Toggle(isOn: $straightenCorners) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Straighten corners")
+                                    .font(Typography.headline)
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text(straightenCorners
+                                     ? "Walls that were nearly square are now exactly 90° (or 45°). The faint line is how it was scanned."
+                                     : "Showing the outline exactly as scanned.")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .tint(Theme.accent)
+                    }
                     PrimaryButton(title: "Use this outline", systemImage: "checkmark") {
                         onApply(draft)
                         dismiss()
@@ -326,10 +363,18 @@ struct ScanRoomView: View {
 struct DraftPreview: View {
     let draft: RoomDraft
     let unit: UnitSystem
+    /// The outline before straightening, drawn faintly behind it.
+    var before: [Point2D]? = nil
 
     var body: some View {
         Canvas { context, size in
-            let space = CanvasSpace(corners: draft.corners, size: size, padding: 40)
+            let space = CanvasSpace(corners: draft.corners + (before ?? []), size: size, padding: 40)
+            if let before, before.count >= 3 {
+                var path = Path()
+                path.addLines(before.map { space.viewPoint($0) })
+                path.closeSubpath()
+                context.stroke(path, with: .color(Theme.textSecondary.opacity(0.6)), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+            }
             RoomPlanPainter.paint(&context, corners: draft.corners, features: draft.features, selectedID: nil, space: space, unit: unit)
             AdvancedPlanPainter.paintEditing(&context, corners: draft.corners, selectedWall: nil, activeCorner: nil, uncertainWalls: draft.uncertainWalls, space: space)
         }

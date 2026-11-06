@@ -190,7 +190,7 @@ struct RoomBuilderView: View {
 
                 // LiDAR phones can scan now; others see why not and are
                 // pointed back to the drawing tools.
-                Chip(title: RoomPlanScan.isAvailable ? "Scan room · Beta" : "Scan room · Coming soon", systemImage: "camera.viewfinder") { showScan = true }
+                Chip(title: RoomPlanScan.isAvailable || ARMeasure.isAvailable ? "Scan room · Beta" : "Scan room · Coming soon", systemImage: "camera.viewfinder") { showScan = true }
                     .accessibilityHint("Makes a draft outline from a scan, for you to check")
             }
         }
