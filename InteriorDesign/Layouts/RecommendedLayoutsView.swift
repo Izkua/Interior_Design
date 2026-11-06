@@ -23,6 +23,8 @@ struct RecommendedLayoutsView: View {
     @State private var page = 0
     @State private var showRooms = false
     @State private var showAddItem = false
+    @State private var showAddExisting = false
+    @State private var showAddChoice = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -44,8 +46,8 @@ struct RecommendedLayoutsView: View {
                     systemImage: "sofa",
                     title: "No furniture in \(room.name)",
                     message: "Add the pieces you own to this room to see ways to arrange them.",
-                    actionTitle: "Add an item"
-                ) { showAddItem = true }
+                    actionTitle: "Add furniture"
+                ) { showAddChoice = true }
                 .safeAreaInset(edge: .top) { roomPicker.padding(.horizontal, Theme.Space.md) }
             } else if let room {
                 content(room)
@@ -58,7 +60,15 @@ struct RecommendedLayoutsView: View {
             ToolbarItem(placement: .topBarTrailing) { ProfileButton() }
         }
         .navigationDestination(isPresented: $showRooms) { RoomListView() }
-        .sheet(isPresented: $showAddItem) { ItemEditorSheet(item: nil, defaultRoom: room) }
+        .confirmationDialog("Add furniture to \(room?.name ?? "this room")", isPresented: $showAddChoice, titleVisibility: .visible) {
+            Button("Furniture you already have") { showAddExisting = true }
+            Button("New furniture (photo or typed in)") { showAddItem = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showAddItem) { CaptureFlowView(defaultRoom: room) }
+        .sheet(isPresented: $showAddExisting) {
+            if let room { AddExistingFurnitureSheet(room: room) }
+        }
         .task(id: "\(room?.layoutSignature ?? "")#\(seed)") { await generate() }
     }
 

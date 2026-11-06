@@ -139,3 +139,37 @@ final class MultiRoomTests: XCTestCase {
         XCTAssertTrue(sofa.savedLayoutRooms(among: [living, bedroom], excluding: bedroom).isEmpty)
     }
 }
+
+@MainActor
+final class AddExistingFurnitureTests: XCTestCase {
+    func testAddsToThisRoomAndKeepsTheOthers() throws {
+        let container = try ModelContainer(for: Room.self, Item.self, RoomLayout.self, Preferences.self, Product.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let living = Room(name: "Living room", width: 400, length: 400)
+        let bedroom = Room(name: "Bedroom", width: 300, length: 300)
+        context.insert(living); context.insert(bedroom)
+        let chair = Item(type: .chair), lamp = Item(type: .lamp), rug = Item(type: .rug)
+        [chair, lamp, rug].forEach(context.insert)
+        chair.setRooms([living], anyRoom: false)
+        lamp.setRooms([bedroom], anyRoom: false)
+        rug.setRooms([], anyRoom: true)
+        try context.save()
+
+        // The lamp (bedroom only) can be added; the chair is already here,
+        // and the "any room" rug counts as here too.
+        XCTAssertEqual(RoomFurniture.addable([chair, lamp, rug], to: living).map(\.uuid), [lamp.uuid])
+
+        RoomFurniture.add(lamp, to: living)
+        XCTAssertEqual(Set(lamp.assignedRooms.map(\.name)), ["Bedroom", "Living room"])
+        RoomFurniture.add(lamp, to: living)   // adding twice changes nothing
+        XCTAssertEqual(lamp.assignedRooms.count, 2)
+
+        // "Move here" takes it out of the bedroom.
+        RoomFurniture.move(lamp, to: living)
+        XCTAssertEqual(lamp.assignedRooms.map(\.name), ["Living room"])
+        // The "any room" rug becomes a living room piece only.
+        RoomFurniture.move(rug, to: living)
+        XCTAssertFalse(rug.anyRoom)
+    }
+}

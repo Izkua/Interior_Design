@@ -204,3 +204,20 @@ final class CatalogTests: XCTestCase {
         XCTAssertEqual(result.products.map(\.id), ["live"])
     }
 }
+
+final class RoomChoiceTests: XCTestCase {
+    private let living = UUID(), bedroom = UUID(), office = UUID()
+
+    func testUsesTheLastChosenRoom() {
+        XCTAssertEqual(RoomChoice.pick([living, bedroom], saved: bedroom.uuidString, fallback: living), bedroom)
+    }
+
+    func testFallsBackWhenTheSavedRoomIsGone() {
+        XCTAssertEqual(RoomChoice.pick([living, bedroom], saved: office.uuidString, fallback: living), living)
+        XCTAssertEqual(RoomChoice.pick([living, bedroom], saved: "", fallback: nil), living)
+    }
+
+    func testNoRooms() {
+        XCTAssertNil(RoomChoice.pick([], saved: living.uuidString, fallback: living))
+    }
+}

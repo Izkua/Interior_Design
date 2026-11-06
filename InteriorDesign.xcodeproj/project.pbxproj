@@ -16,6 +16,7 @@
 		08A44EB4B7956135A3BF3BD6 /* ItemDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B7679D6AE8634EDDD28984 /* ItemDraft.swift */; };
 		0B25A5A58B9485B005EC6539 /* LayoutPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C33E159A3EA867609FAA59 /* LayoutPlanView.swift */; };
 		0CF2472BDC7FD94C2F5CEFEF /* AuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A5CDE78E06FC02F5AE1CA7 /* AuthTests.swift */; };
+		0CFA013DA75B3ED44BE2A514 /* AddExistingFurnitureSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9FE372325ABF7FD5D22874 /* AddExistingFurnitureSheet.swift */; };
 		0E3A5775AD9AD0958D609AA5 /* EditHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396C6287392C535D282D6B69 /* EditHistory.swift */; };
 		1527A3B13E8CAFE5A8E027DB /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C2FB16A4B137FA00EB85840 /* Room.swift */; };
 		1DC67EDA7E526CF0437E0BA3 /* Units.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD835EC463E9043DD1843088 /* Units.swift */; };
@@ -186,6 +187,7 @@
 		DDBEA0E8AA4A51A4C00D7854 /* ProfileButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileButton.swift; sourceTree = "<group>"; };
 		E32DC643635CF1DC06937AFA /* CatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTests.swift; sourceTree = "<group>"; };
 		E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceMeasureView.swift; sourceTree = "<group>"; };
+		EE9FE372325ABF7FD5D22874 /* AddExistingFurnitureSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddExistingFurnitureSheet.swift; sourceTree = "<group>"; };
 		EF8E5FA065BAC046DB6BC309 /* CaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTests.swift; sourceTree = "<group>"; };
 		F02F215C29A0864F42E4B4A1 /* LengthField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LengthField.swift; sourceTree = "<group>"; };
 		F23436AC891BD40FB3136369 /* ReferenceScale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceScale.swift; sourceTree = "<group>"; };
@@ -415,6 +417,7 @@
 		AD6E5A97F636626F6D7D0A37 /* Rooms */ = {
 			isa = PBXGroup;
 			children = (
+				EE9FE372325ABF7FD5D22874 /* AddExistingFurnitureSheet.swift */,
 				5F3F0BBF3378088389148C78 /* AdvancedRoomCanvas.swift */,
 				BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */,
 				1921CD474D7FEEDBB904DE3B /* RoomCanvasView.swift */,
@@ -556,6 +559,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F314DA495D855B40801909F0 /* ARMeasureView.swift in Sources */,
+				0CFA013DA75B3ED44BE2A514 /* AddExistingFurnitureSheet.swift in Sources */,
 				AF2C4A7F1576869D3209763C /* AdvancedRoomCanvas.swift in Sources */,
 				9243E36D2A517EE47A51B163 /* AppleSignIn.swift in Sources */,
 				E0BA3F070738A752CA91DE9E /* AuthClient.swift in Sources */,
@@ -740,7 +744,7 @@
 				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -772,7 +776,7 @@
 				CODE_SIGN_ENTITLEMENTS = InteriorDesign/InteriorDesign.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = 62YVXX9LJG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -12,6 +12,11 @@ struct RoomFurnitureView: View {
     @State private var arranging: LayoutSuggestion?
     @State private var showSuggestions = false
     @State private var editing: Item?
+    @State private var showAddExisting = false
+    @State private var showNewFurniture = false
+    /// Any furniture at all, anywhere: if not, there's nothing to bring in.
+    @Query private var everyItem: [Item]
+    private var hasOtherFurniture: Bool { !everyItem.isEmpty }
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -24,13 +29,8 @@ struct RoomFurnitureView: View {
 
         ScrollView {
             if items.isEmpty {
-                EmptyState(
-                    systemImage: "sofa",
-                    title: "No furniture in \(room.name) yet",
-                    message: "Add the pieces you own to this room, then arrange them.",
-                    actionTitle: "Add an item"
-                ) { showAddItem = true }
-                .padding(Theme.Space.md)
+                emptyRoom
+                    .padding(Theme.Space.md)
             } else {
                 // Everything scrolls together: the plan, the buttons, then
                 // the furniture list.
@@ -57,7 +57,9 @@ struct RoomFurnitureView: View {
             }
         }
         .sheet(isPresented: $showAddItem) { ItemEditorSheet(item: nil, defaultRoom: room) }
+        .sheet(isPresented: $showNewFurniture) { CaptureFlowView(defaultRoom: room) }
         .sheet(item: $editing) { item in ItemEditorSheet(item: item) }
+        .sheet(isPresented: $showAddExisting) { AddExistingFurnitureSheet(room: room) }
         // Sheets, not pushed screens: a screen pushed from this already
         // pushed one can loop forever on iOS 26 (see ProductDetailView).
         .sheet(item: $arranging) { suggestion in
@@ -82,6 +84,36 @@ struct RoomFurnitureView: View {
                     }
             }
         }
+    }
+
+    /// No furniture yet: bring in pieces you've already added elsewhere,
+    /// or add a new one (photo, library, or typed in).
+    private var emptyRoom: some View {
+        VStack(spacing: Theme.Space.md) {
+            Image(systemName: "sofa")
+                .font(.system(size: 36))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 80, height: 80)
+                .background(Theme.accent.opacity(0.12), in: Circle())
+                .accessibilityHidden(true)
+            Text("No furniture in \(room.name) yet")
+                .font(Typography.title)
+                .foregroundStyle(Theme.textPrimary)
+                .multilineTextAlignment(.center)
+            Text("Add the pieces you own to this room, then arrange them.")
+                .font(Typography.body)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+
+            PrimaryButton(title: "New furniture: take or choose a photo", systemImage: "camera") { showNewFurniture = true }
+            if hasOtherFurniture {
+                PrimaryButton(title: "Add furniture you already have", systemImage: "sofa", style: .tinted) { showAddExisting = true }
+            }
+            Button("Add without a photo") { showAddItem = true }
+                .font(Typography.headline)
+                .frame(minHeight: Theme.minTap)
+        }
+        .padding(.top, Theme.Space.lg)
     }
 
     @ViewBuilder
@@ -139,13 +171,23 @@ struct RoomFurnitureView: View {
             HStack {
                 SectionHeader(title: "Furniture in \(room.name)")
                 Spacer()
-                Button {
-                    showAddItem = true
+                Menu {
+                    Button {
+                        showAddExisting = true
+                    } label: {
+                        Label("Add existing furniture", systemImage: "sofa")
+                    }
+                    Button {
+                        showNewFurniture = true
+                    } label: {
+                        Label("New furniture", systemImage: "plus")
+                    }
                 } label: {
                     Label("Add", systemImage: "plus")
                         .font(Typography.subheadline)
                         .frame(minHeight: Theme.minTap)
                 }
+                .accessibilityHint("Add furniture you already have, or a new piece")
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Space.sm + 4), GridItem(.flexible(), spacing: Theme.Space.sm + 4)],
                       spacing: Theme.Space.sm + 4) {

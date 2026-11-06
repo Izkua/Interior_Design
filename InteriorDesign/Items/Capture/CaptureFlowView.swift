@@ -10,6 +10,11 @@ struct CaptureFlowView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Room.updatedAt, order: .reverse) private var rooms: [Room]
 
+    /// The room the new piece goes in (from a room's Furniture page);
+    /// otherwise the most recently edited room.
+    var defaultRoom: Room? = nil
+    @State private var showManual = false
+
     private enum Step: Hashable { case size, reference, confirm }
 
 
@@ -58,6 +63,11 @@ struct CaptureFlowView: View {
                 if let photo { use(photo) }
             }
             .ignoresSafeArea()
+        }
+        // Typing it in instead: the same form as Current Items' + button.
+        // Closing it also closes this flow.
+        .sheet(isPresented: $showManual, onDismiss: { dismiss() }) {
+            ItemEditorSheet(item: nil, defaultRoom: defaultRoom ?? rooms.first)
         }
         .fullScreenCover(isPresented: $showAR) {
             ARMeasureView(start: (draft.widthCm, draft.depthCm, draft.heightCm), onDone: { w, d, h in
@@ -124,6 +134,15 @@ struct CaptureFlowView: View {
                         .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                 }
 
+                Button {
+                    showManual = true
+                } label: {
+                    Label("Add without a photo", systemImage: "square.and.pencil")
+                        .font(Typography.headline)
+                        .frame(maxWidth: .infinity, minHeight: Theme.minTap)
+                }
+                .accessibilityHint("Type the type and sizes yourself")
+
                 if isLabeling {
                     ProgressView("Looking at your photo…")
                 }
@@ -151,7 +170,7 @@ struct CaptureFlowView: View {
         Task {
             let result = try? await labeler.label(photo)
             label = result
-            var fresh = ItemDraft(type: result?.type ?? .other, room: rooms.first)
+            var fresh = ItemDraft(type: result?.type ?? .other, room: defaultRoom ?? rooms.first)
             fresh.photoData = PhotoResizer.jpeg(from: photo.jpegData(compressionQuality: 0.9) ?? Data())
             draft = fresh
             method = .typical

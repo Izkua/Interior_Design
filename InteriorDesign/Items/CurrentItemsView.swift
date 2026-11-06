@@ -105,9 +105,10 @@ struct CurrentItemsView: View {
                 RoomListView()
             }
             .sheet(isPresented: $showAddItem) {
-                // New items go in the most recently edited room; the
-                // person can pick another room or none.
-                ItemEditorSheet(item: nil, defaultRoom: filteredRoom ?? rooms.first)
+                // The full add flow: photo, library, or typed in. New items
+                // go in the filtered room, else the most recently edited one;
+                // the person can pick another room or none.
+                CaptureFlowView(defaultRoom: filteredRoom ?? rooms.first)
             }
             .sheet(item: $itemToEdit) { item in
                 ItemEditorSheet(item: item)

@@ -69,7 +69,9 @@ enum LayoutEngine {
         var candidates: [LayoutSuggestion] = []
         for attempt in 0..<candidateCount {
             // Always build a few candidates, then respect the time budget.
-            if attempt >= 8, Date().timeIntervalSince(started) > options.timeBudget { break }
+            // (With furniture groups, a candidate for 30 pieces can take
+            // most of a second in a debug build, so only 3 are guaranteed.)
+            if attempt >= 3, Date().timeIntervalSince(started) > options.timeBudget { break }
             // The first candidate is the least random one.
             let jitter = attempt == 0 ? 0.0 : 1.0
             let placed = buildCandidate(items: items, rules: rules, jitter: jitter, rng: &rng)
