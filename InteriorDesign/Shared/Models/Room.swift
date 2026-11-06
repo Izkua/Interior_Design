@@ -145,6 +145,11 @@ final class Room {
     /// Walls a scan wasn't sure about, highlighted until the person
     /// measures or moves them.
     var uncertainWalls: [Int] = []
+    /// Posters, frames, shelves and so on, placed on the walls. Rooms saved
+    /// before this existed load with none.
+    var wallDecor: [WallDecor] = []
+    /// Floor to ceiling, in cm, for the wall front views.
+    var ceilingHeightCm: Double = WallDecorGeometry.defaultCeilingCm
     var createdAt: Date
     var updatedAt: Date
 
@@ -197,8 +202,10 @@ final class Room {
     /// Changes the room to a new rectangle and keeps every door, window,
     /// and outlet inside its wall.
     func resize(width newWidth: Double, length newLength: Double) {
+        let old = corners
         corners = PlanGeometry.rectangleCorners(width: newWidth, length: newLength)
         features = features.map(fitted)
+        moveDecor(from: old)
         updatedAt = Date()
     }
 
@@ -291,10 +298,12 @@ final class Room {
     var outline: RoomOutline {
         get { RoomOutline(corners: corners, features: features, measurements: measurements, uncertainWalls: uncertainWalls) }
         set {
+            let old = corners
             corners = newValue.corners
             features = newValue.features
             measurements = newValue.measurements
             uncertainWalls = newValue.uncertainWalls
+            moveDecor(from: old)
             updatedAt = Date()
         }
     }
@@ -311,6 +320,7 @@ final class Room {
         let old = corners
         corners[index] = point
         features = features.map { stretched($0, from: old) }
+        moveDecor(from: old)
         // Moving a corner by hand counts as checking the two walls at it.
         let before = PolygonGeometry.wrap(index - 1, corners.count)
         uncertainWalls.removeAll { $0 == index || $0 == before }
@@ -326,6 +336,7 @@ final class Room {
         let index = wall + 1
         corners.insert(point, at: index)
         features = features.map { replaced($0, from: old) }
+        moveDecor(from: old)
         // The split wall is now two new walls, so its measurement no longer
         // applies; walls after it move up by one.
         measurements = measurements.compactMap { m in
@@ -351,6 +362,7 @@ final class Room {
         corners.remove(at: index)
         // Features on either joined wall move to the nearest remaining wall.
         features = features.map { replaced($0, from: old) }
+        moveDecor(from: old)
         let before = PolygonGeometry.wrap(index - 1, count)
         measurements = measurements.compactMap { m in
             if m.wall == before || m.wall == index { return nil }
@@ -380,6 +392,7 @@ final class Room {
         let old = corners
         corners = PolygonGeometry.settingWallLength(wall, to: length, corners: old)
         features = features.map { stretched($0, from: old) }
+        moveDecor(from: old)
         recordMeasurement(wall, length)
         uncertainWalls.removeAll { $0 == wall }
         updatedAt = Date()
@@ -417,6 +430,7 @@ final class Room {
             }
         }
         features = features.map { stretched($0, from: old) }
+        moveDecor(from: old)
         updatedAt = Date()
     }
 

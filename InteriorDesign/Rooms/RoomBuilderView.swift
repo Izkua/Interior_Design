@@ -23,12 +23,14 @@ struct RoomBuilderView: View {
     /// Undo and redo for the advanced builder. Kept only while this screen
     /// is open.
     @State private var history = EditHistory<RoomOutline>()
-    /// "Room" (walls, doors, windows) or "Furniture" (where things stand).
+    /// "Room" (walls, doors, windows), "Furniture" (where things stand), or
+    /// "Walls" (posters, frames, and shelves on each wall).
     @State private var page: RoomPage = .room
 
     enum RoomPage: String, CaseIterable, Identifiable {
         case room = "Room"
         case furniture = "Furniture"
+        case walls = "Walls"
         var id: String { rawValue }
     }
 
@@ -52,12 +54,12 @@ struct RoomBuilderView: View {
             .padding(.bottom, Theme.Space.sm)
             .background(Theme.background)
             .zIndex(1)
-            .accessibilityLabel("Show the room's walls and doors, or its furniture")
+            .accessibilityLabel("Show the room's outline, its furniture, or the decor on its walls")
 
-            if page == .room {
-                roomPage
-            } else {
-                RoomFurnitureView(room: room)
+            switch page {
+            case .room: roomPage
+            case .furniture: RoomFurnitureView(room: room)
+            case .walls: WallDecorView(room: room)
             }
         }
         .background(Theme.background.ignoresSafeArea())
