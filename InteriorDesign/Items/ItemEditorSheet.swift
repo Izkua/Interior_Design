@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import UIKit
+import UniformTypeIdentifiers
+import simd
 
 /// Add a piece of furniture by hand, or edit one. Pass an item to edit it;
 /// pass nil to add a new one.
@@ -18,6 +20,11 @@ struct ItemEditorSheet: View {
     @State private var draft: ItemDraft
     @State private var photoSelection: PhotosPickerItem?
     @State private var confirmDelete = false
+    @State private var showAR = false
+    @State private var showScan = false
+    @State private var showImport = false
+    /// A short note under the 3D model card, like "Sizes updated from the scan."
+    @State private var modelNote: String?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -36,6 +43,21 @@ struct ItemEditorSheet: View {
                     photoCard
                     typeCard
                     sizeCard
+                    modelCard
+                    if ARPlaceView.isAvailable {
+                        Button {
+                            hideKeyboard()
+                            showAR = true
+                        } label: {
+                            Label("See it in my room", systemImage: "arkit")
+                                .font(Typography.headline)
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityHint("Shows this piece at its true size in your room, through the camera")
+                    }
                     detailsCard
                     if item != nil {
                         Button(role: .destructive) {
@@ -75,11 +97,118 @@ struct ItemEditorSheet: View {
             } message: {
                 Text("This can't be undone.")
             }
+            .fullScreenCover(isPresented: $showScan) {
+                #if !targetEnvironment(simulator)
+                ObjectScanView { data in useScan(data) }
+                #endif
+            }
+            .fileImporter(isPresented: $showImport, allowedContentTypes: [.usdz]) { result in
+                importModel(result)
+            }
+            .fullScreenCover(isPresented: $showAR) {
+                ARPlaceView(start: [arPiece])
+            }
             .onChange(of: photoSelection) { _, selection in
                 loadPhoto(selection)
             }
         }
         .presentationDragIndicator(.visible)
+    }
+
+    /// The piece as it is in the form now, unsaved changes included.
+    private var arPiece: ARPiece {
+        ARPiece(
+            name: draft.trimmedName.isEmpty ? draft.type.displayName : draft.trimmedName,
+            type: draft.type, widthCm: draft.widthCm, depthCm: draft.depthCm, heightCm: draft.heightCm,
+            colors: draft.photoData.flatMap(UIImage.init(data:)).map { PhotoColors.colors(from: $0, type: draft.type) }
+                ?? .fallback(for: draft.type),
+            isEstimated: item?.isEstimated ?? false,
+            photoData: draft.photoData,
+            modelData: draft.modelData
+        )
+    }
+
+    // MARK: 3D model
+
+    private var modelCard: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
+                HStack {
+                    SectionHeader(title: "3D model")
+                    if draft.modelData != nil { Tag(text: "Added") }
+                }
+                Text(draft.modelData == nil
+                     ? (ObjectScan.isSupported
+                        ? "Scan the piece in 3D by walking around it. \"See it in my room\" then shows the real thing."
+                        : "3D scanning needs an iPhone with LiDAR (Pro models). You can still add a 3D model (.usdz) made on another phone or a Mac.")
+                     : "\"See it in my room\" shows this 3D model.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let modelNote {
+                    Text(modelNote)
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textPrimary)
+                }
+                HStack(spacing: Theme.Space.sm) {
+                    if ObjectScan.isSupported {
+                        modelButton(draft.modelData == nil ? "Scan in 3D" : "Scan again", systemImage: "cube.transparent") {
+                            hideKeyboard()
+                            showScan = true
+                        }
+                    }
+                    modelButton(ObjectScan.isSupported ? "Import" : "Import 3D model", systemImage: "square.and.arrow.down") {
+                        showImport = true
+                    }
+                }
+                if draft.modelData != nil {
+                    Button("Remove 3D model", role: .destructive) {
+                        draft.modelData = nil
+                        modelNote = nil
+                    }
+                    .font(Typography.subheadline)
+                    .frame(minHeight: Theme.minTap)
+                }
+            }
+        }
+    }
+
+    private func modelButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(Typography.subheadline)
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTap)
+                .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    /// A LiDAR scan is true to size, so it also measures the piece.
+    private func useScan(_ data: Data) {
+        draft.modelData = data
+        guard let size = ARPlaceController.modelSize(data) else {
+            modelNote = "3D model added."
+            return
+        }
+        let target = simd_float3(Float(draft.widthCm), Float(draft.heightCm), Float(draft.depthCm)) / 100
+        let turned = ModelFit.fit(extents: size, target: target).turned
+        draft.widthCm = Double((turned ? size.z : size.x) * 100).rounded()
+        draft.depthCm = Double((turned ? size.x : size.z) * 100).rounded()
+        draft.heightCm = Double(size.y * 100).rounded()
+        modelNote = "3D model added. The sizes above were measured by the scan; Save to keep them."
+    }
+
+    private func importModel(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else { return }
+        let opened = url.startAccessingSecurityScopedResource()
+        defer { if opened { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), ARPlaceController.modelSize(data) != nil else {
+            modelNote = "That file couldn't be opened as a 3D model."
+            return
+        }
+        draft.modelData = data
+        modelNote = "3D model added. It's sized to fit the sizes above."
     }
 
     // MARK: Photo

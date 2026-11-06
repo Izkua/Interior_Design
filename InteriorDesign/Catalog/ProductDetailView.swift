@@ -25,6 +25,7 @@ struct ProductDetailView: View {
     /// The room last chosen for previews, remembered between products.
     @AppStorage("catalog.previewRoomID") private var previewRoomID = ""
     @State private var showRooms = false
+    @State private var showAR = false
 
     /// The room the fit check and preview use: the one picked here last,
     /// else the Catalog's room, else the most recently edited.
@@ -122,6 +123,20 @@ struct ProductDetailView: View {
                     .disabled(isPreparingPreview)
                 }
 
+                if ARPlaceView.isAvailable, product.hasDimensions {
+                    Button {
+                        showAR = true
+                    } label: {
+                        Label("See it in my room", systemImage: "arkit")
+                            .font(Typography.headline)
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityHint("Shows a true-size stand-in of this product in your room, through the camera")
+                }
+
                 if product.url != nil {
                     PrimaryButton(title: isOpening ? "Opening…" : "View at \(product.retailer)", systemImage: "arrow.up.right.square") {
                         Task { await openRetailer() }
@@ -150,6 +165,9 @@ struct ProductDetailView: View {
         // A sheet, not a pushed screen: on iOS 26, a navigationDestination
         // on this (already pushed) screen kept rebuilding the preview every
         // frame and froze the app.
+        .fullScreenCover(isPresented: $showAR) {
+            if let piece = ARPiece(product: product) { ARPlaceView(start: [piece]) }
+        }
         .sheet(isPresented: $showRooms) {
             NavigationStack { RoomListView() }
         }
