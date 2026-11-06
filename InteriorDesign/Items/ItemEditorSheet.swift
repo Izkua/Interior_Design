@@ -18,6 +18,7 @@ struct ItemEditorSheet: View {
     @State private var draft: ItemDraft
     @State private var photoSelection: PhotosPickerItem?
     @State private var confirmDelete = false
+    @State private var showAR = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -36,6 +37,20 @@ struct ItemEditorSheet: View {
                     photoCard
                     typeCard
                     sizeCard
+                    if ARPlaceView.isAvailable {
+                        Button {
+                            hideKeyboard()
+                            showAR = true
+                        } label: {
+                            Label("See it in my room", systemImage: "arkit")
+                                .font(Typography.headline)
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityHint("Shows this piece at its true size in your room, through the camera")
+                    }
                     detailsCard
                     if item != nil {
                         Button(role: .destructive) {
@@ -75,11 +90,25 @@ struct ItemEditorSheet: View {
             } message: {
                 Text("This can't be undone.")
             }
+            .fullScreenCover(isPresented: $showAR) {
+                ARPlaceView(start: [arPiece])
+            }
             .onChange(of: photoSelection) { _, selection in
                 loadPhoto(selection)
             }
         }
         .presentationDragIndicator(.visible)
+    }
+
+    /// The piece as it is in the form now, unsaved changes included.
+    private var arPiece: ARPiece {
+        ARPiece(
+            name: draft.trimmedName.isEmpty ? draft.type.displayName : draft.trimmedName,
+            type: draft.type, widthCm: draft.widthCm, depthCm: draft.depthCm, heightCm: draft.heightCm,
+            colors: draft.photoData.flatMap(UIImage.init(data:)).map { PhotoColors.colors(from: $0, type: draft.type) }
+                ?? .fallback(for: draft.type),
+            isEstimated: item?.isEstimated ?? false
+        )
     }
 
     // MARK: Photo
