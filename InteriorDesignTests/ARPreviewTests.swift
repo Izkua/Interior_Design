@@ -97,4 +97,17 @@ final class ARPreviewTests: XCTestCase {
         product.depthCm = nil
         XCTAssertNil(ARPiece(product: product))
     }
+
+    // MARK: Standing photo size
+
+    func testStandingPhotoFitsTheTrueSize() {
+        // A wide sofa photo: limited by the sofa's width, shorter than its height.
+        let wide = PhotoCutout.standingSize(imageWidth: 400, imageHeight: 100, widthCm: 200, depthCm: 90, heightCm: 85)
+        XCTAssertEqual(wide.width, 2, accuracy: 0.001)
+        XCTAssertEqual(wide.height, 0.5, accuracy: 0.001)
+        // A tall lamp photo: as tall as the lamp.
+        let tall = PhotoCutout.standingSize(imageWidth: 100, imageHeight: 500, widthCm: 30, depthCm: 30, heightCm: 150)
+        XCTAssertEqual(tall.height, 1.5, accuracy: 0.001)
+        XCTAssertEqual(tall.width, 0.3, accuracy: 0.001)
+    }
 }

@@ -107,7 +107,8 @@ struct ItemEditorSheet: View {
             type: draft.type, widthCm: draft.widthCm, depthCm: draft.depthCm, heightCm: draft.heightCm,
             colors: draft.photoData.flatMap(UIImage.init(data:)).map { PhotoColors.colors(from: $0, type: draft.type) }
                 ?? .fallback(for: draft.type),
-            isEstimated: item?.isEstimated ?? false
+            isEstimated: item?.isEstimated ?? false,
+            photoData: draft.photoData
         )
     }
 

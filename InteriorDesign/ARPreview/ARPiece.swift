@@ -13,7 +13,9 @@ struct ARPiece: Identifiable, Equatable {
     var colors: FurnitureColors
     /// True while the size is a guess from a photo.
     var isEstimated = false
-    /// Where to fetch a better color from later (catalog photos).
+    /// The piece's own photo (saved items).
+    var photoData: Data?
+    /// Where to fetch its photo from (catalog products).
     var imageURL: URL?
 
     var parts: [FurnitureShape.Part] {
@@ -30,7 +32,8 @@ extension ARPiece {
             widthCm: item.widthCm, depthCm: item.depthCm, heightCm: item.heightCm,
             colors: item.photoData.flatMap(UIImage.init(data:)).map { PhotoColors.colors(from: $0, type: item.type) }
                 ?? .fallback(for: item.type),
-            isEstimated: item.isEstimated
+            isEstimated: item.isEstimated,
+            photoData: item.photoData
         )
     }
 
@@ -47,12 +50,13 @@ extension ARPiece {
         )
     }
 
-    /// Downloads the product photo and picks colors from it. Nil if it
-    /// can't be fetched.
-    static func colors(fromImageAt url: URL, type: ItemType) async -> FurnitureColors? {
-        guard let (data, response) = try? await URLSession.shared.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode ?? 200 < 400,
-              let image = UIImage(data: data) else { return nil }
-        return PhotoColors.colors(from: image, type: type)
+    /// The piece's photo: the saved one, or the product photo downloaded.
+    /// Nil if there's none or it can't be fetched.
+    func loadPhoto() async -> UIImage? {
+        if let photoData, let image = UIImage(data: photoData) { return image }
+        guard let url = imageURL,
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode ?? 200 < 400 else { return nil }
+        return UIImage(data: data)
     }
 }

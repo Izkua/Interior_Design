@@ -64,12 +64,22 @@ struct ARPlaceView: View {
             }
             .accessibilityLabel("Close")
             Spacer()
-            Text("True size")
-                .font(Typography.caption)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .accessibilityLabel("Pieces are shown at their true size")
+            if controller.hasPhotos {
+                Picker("Show pieces as", selection: $controller.look) {
+                    Text("Photo").tag(ARPlaceController.Look.photo)
+                    Text("Shape").tag(ARPlaceController.Look.shape)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 170)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            } else {
+                Text("True size")
+                    .font(Typography.caption)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .accessibilityLabel("Pieces are shown at their true size")
+            }
             Spacer()
             addMenu
         }
@@ -117,7 +127,7 @@ struct ARPlaceView: View {
                 pieceLine(selected)
                 HStack(spacing: Theme.Space.sm) {
                     panelButton("Turn", systemImage: "rotate.right") { controller.turnSelected() }
-                    panelButton("Copy", systemImage: "plus.square.on.square") { controller.queue([selected.withNewID()]) }
+                    panelButton("Copy", systemImage: "plus.square.on.square") { controller.copySelected() }
                     panelButton("Remove", systemImage: "trash", role: .destructive) { controller.removeSelected() }
                 }
             }
@@ -163,14 +173,6 @@ struct ARPlaceView: View {
     }
 }
 
-private extension ARPiece {
-    func withNewID() -> ARPiece {
-        var copy = self
-        copy.id = UUID()
-        return copy
-    }
-}
-
 // MARK: - The camera view
 
 private struct ARContainer: UIViewRepresentable {
@@ -199,6 +201,15 @@ final class ARPlaceController: NSObject {
     private(set) var placedCount = 0
     /// A short instruction over the camera, or nil.
     private(set) var hint: String? = "Move your phone slowly to find the floor."
+    /// True once at least one piece has a cut-out photo to show.
+    private(set) var hasPhotos = false
+
+    /// How pieces are drawn: their cut-out photo standing in the room, or
+    /// the colored box shape.
+    enum Look: Hashable { case photo, shape }
+    var look: Look = .photo {
+        didSet { applyLook() }
+    }
 
     @ObservationIgnored private weak var arView: ARView?
     @ObservationIgnored private var footprint: ModelEntity?
@@ -206,8 +217,11 @@ final class ARPlaceController: NSObject {
     @ObservationIgnored private var placed: [UUID: (piece: ARPiece, entity: ModelEntity)] = [:]
     @ObservationIgnored private var updates: Cancellable?
     @ObservationIgnored private var aim: simd_float4x4?
+    /// Each piece's cut-out photo, once it's ready.
+    @ObservationIgnored private var cutouts: [UUID: CGImage] = [:]
 
     func makeView() -> ARView {
+        BillboardTag.registerComponent()
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         view.renderOptions.insert(.disableMotionBlur)
         let config = ARWorldTrackingConfiguration()
@@ -224,7 +238,10 @@ final class ARPlaceController: NSObject {
 
         view.scene.addAnchor(footprintAnchor)
         view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
-        updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak self] _ in self?.updateAim() }
+        updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
+            self?.turnPhotosToCamera()
+            self?.updateAim()
+        }
         arView = view
         if let first = pending.first { showFootprint(for: first) }
         return view
@@ -237,26 +254,44 @@ final class ARPlaceController: NSObject {
         let wasEmpty = pending.isEmpty
         pending.append(contentsOf: pieces)
         if wasEmpty, let first = pending.first { showFootprint(for: first) }
-        for piece in pieces {
-            if let url = piece.imageURL {
-                Task { [weak self] in
-                    guard let colors = await ARPiece.colors(fromImageAt: url, type: piece.type) else { return }
-                    await MainActor.run { self?.recolor(piece.id, colors) }
+        for piece in pieces where cutouts[piece.id] == nil {
+            Task { [weak self] in
+                guard let photo = await piece.loadPhoto() else { return }
+                // Saved items were colored from their photo already.
+                let colors = piece.imageURL != nil ? PhotoColors.colors(from: photo, type: piece.type) : nil
+                // A rug is shown flat with its whole photo; anything else
+                // is lifted out of its background to stand up.
+                let cutout = piece.type == .rug ? photo.cgImage : await PhotoCutout.cutout(from: photo)
+                await MainActor.run {
+                    if let colors { self?.recolor(piece.id, colors) }
+                    if let cutout { self?.addCutout(cutout, to: piece.id) }
                 }
             }
         }
+    }
+
+    func copySelected() {
+        guard var copy = selected else { return }
+        let original = copy.id
+        copy.id = UUID()
+        if let cutout = cutouts[original] {
+            cutouts[copy.id] = cutout
+        }
+        queue([copy])
     }
 
     func placePending() {
         guard let aim, let arView, !pending.isEmpty else { return }
         let piece = pending.removeFirst()
         let entity = Self.makeEntity(for: piece)
+        if let cutout = cutouts[piece.id] { Self.addPhoto(cutout, of: piece, to: entity) }
         let anchor = AnchorEntity(world: aim)
         anchor.addChild(entity)
         arView.scene.addAnchor(anchor)
         arView.installGestures([.translation, .rotation], for: entity)
         placed[piece.id] = (piece, entity)
         placedCount = placed.count
+        applyLook()
         select(piece.id)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if let next = pending.first { showFootprint(for: next) } else { footprint?.isEnabled = false }
@@ -311,6 +346,38 @@ final class ARPlaceController: NSObject {
         }
     }
 
+    private func addCutout(_ cutout: CGImage, to id: UUID) {
+        cutouts[id] = cutout
+        hasPhotos = true
+        if let entry = placed[id], entry.entity.findEntity(named: "photo") == nil {
+            Self.addPhoto(cutout, of: entry.piece, to: entry.entity)
+            applyLook()
+        }
+    }
+
+    /// Shows each piece's photo, or its box shape when it has no photo
+    /// (or Shape is picked).
+    private func applyLook() {
+        for entry in placed.values {
+            let photo = entry.entity.findEntity(named: "photo")
+            photo?.isEnabled = look == .photo
+            entry.entity.findEntity(named: "shape")?.isEnabled = look == .shape || photo == nil
+        }
+    }
+
+    /// Standing photos always face the camera, so the piece looks the same
+    /// from wherever you stand (it's a flat picture, not a model).
+    private func turnPhotosToCamera() {
+        guard look == .photo, let arView else { return }
+        let camera = arView.cameraTransform.translation
+        for entry in placed.values {
+            guard let photo = entry.entity.findEntity(named: "photo"), photo.components[BillboardTag.self] != nil else { continue }
+            let position = photo.position(relativeTo: nil)
+            let yaw = atan2(camera.x - position.x, camera.z - position.z)
+            photo.setOrientation(simd_quatf(angle: yaw, axis: [0, 1, 0]), relativeTo: nil)
+        }
+    }
+
     // MARK: Aiming at the floor
 
     private func updateAim() {
@@ -361,12 +428,15 @@ final class ARPlaceController: NSObject {
 
     static func makeEntity(for piece: ARPiece) -> ModelEntity {
         let root = ModelEntity()
+        let shape = Entity()
+        shape.name = "shape"
+        root.addChild(shape)
         for part in piece.parts {
             let mesh = MeshResource.generateBox(size: part.size, cornerRadius: part.cornerRadius)
             let child = ModelEntity(mesh: mesh, materials: [material(for: part.tone, piece.colors)])
             child.name = "\(part.tone)"
             child.position = part.center
-            root.addChild(child)
+            shape.addChild(child)
         }
         let w = Float(piece.widthCm / 100), d = Float(piece.depthCm / 100), h = Float(piece.heightCm / 100)
         // A soft dark patch under it, so it looks like it stands on the floor.
@@ -385,8 +455,34 @@ final class ARPlaceController: NSObject {
         return root
     }
 
+    /// Adds the piece's photo, sized to its true size: standing up in the
+    /// middle of its footprint, or lying flat for a rug.
+    static func addPhoto(_ image: CGImage, of piece: ARPiece, to root: Entity) {
+        guard let texture = try? TextureResource.generate(from: image, options: .init(semantic: .color)) else { return }
+        var material = UnlitMaterial()
+        material.color = .init(tint: .white, texture: .init(texture))
+        // The cut-away background is see-through.
+        material.opacityThreshold = 0.5
+        let photo: ModelEntity
+        if piece.type == .rug {
+            photo = ModelEntity(mesh: .generatePlane(width: Float(piece.widthCm / 100), depth: Float(piece.depthCm / 100)), materials: [material])
+            photo.position.y = 0.006
+        } else {
+            let size = PhotoCutout.standingSize(imageWidth: image.width, imageHeight: image.height,
+                                                widthCm: piece.widthCm, depthCm: piece.depthCm, heightCm: piece.heightCm)
+            let plane = ModelEntity(mesh: .generatePlane(width: size.width, height: size.height), materials: [material])
+            plane.position.y = size.height / 2
+            photo = ModelEntity()
+            photo.addChild(plane)
+            photo.components.set(BillboardTag())
+        }
+        photo.name = "photo"
+        root.addChild(photo)
+    }
+
     static func paint(_ root: Entity, _ colors: FurnitureColors) {
-        for child in root.children {
+        guard let shape = root.findEntity(named: "shape") else { return }
+        for child in shape.children {
             guard let model = child as? ModelEntity else { continue }
             let tone: FurnitureShape.Tone? = switch child.name {
             case "main": .main
@@ -434,3 +530,6 @@ final class ARPlaceController: NSObject {
         return root
     }
 }
+
+/// Marks a standing photo that turns to face the camera.
+private struct BillboardTag: Component {}
