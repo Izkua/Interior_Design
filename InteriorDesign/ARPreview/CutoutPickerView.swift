@@ -175,10 +175,6 @@ struct CutoutPickerView: View {
     /// Pinch to zoom (1 = whole photo); move around with one finger in
     /// Tap mode, or two fingers in any mode.
     @State private var zoom: CGFloat = 1
-    @State private var zoomAtStart: CGFloat = 1
-    @State private var pan: CGSize = .zero
-    @State private var panAtStart: CGSize = .zero
-    @State private var isPinching = false
 
     private var instructions: String {
         switch tool {
@@ -186,8 +182,8 @@ struct CutoutPickerView: View {
             return mask?.allObjects.isEmpty == false
                 ? "Tap an object to add or remove it. Pinch to zoom, drag to move. Missing part of your \(itemName.lowercased())? Use Paint."
                 : "No objects were found. Use Paint to color over your \(itemName.lowercased())."
-        case .paint: return "Color over the parts of your \(itemName.lowercased()) to keep. Pinch to zoom; switch to Tap to move around."
-        case .erase: return "Color over anything that isn't part of it. Pinch to zoom; switch to Tap to move around."
+        case .paint: return "Color over the parts of your \(itemName.lowercased()) to keep. Pinch to zoom, two fingers to move."
+        case .erase: return "Color over anything that isn't part of it. Pinch to zoom, two fingers to move."
         }
     }
 
@@ -211,69 +207,20 @@ struct CutoutPickerView: View {
                     if isLoading {
                         ProgressView("Finding objects…")
                     } else if let image = shown ?? mask?.photo {
-                        GeometryReader { geo in
-                            let fitted = fit(CGSize(width: image.width, height: image.height), in: geo.size)
-                            Image(decorative: image, scale: 1)
-                                .resizable()
-                                .frame(width: fitted.width, height: fitted.height)
-                                .contentShape(Rectangle())
-                                // Tap mode: tap an object.
-                                .gesture(SpatialTapGesture().onEnded { value in
-                                    tapObject(CGPoint(x: value.location.x / fitted.width, y: value.location.y / fitted.height))
-                                }, including: tool == .tap ? .all : .none)
-                                // Paint and Erase: drag to color.
-                                .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                                    touch(CGPoint(x: value.location.x / fitted.width, y: value.location.y / fitted.height))
-                                }.onEnded { _ in
-                                    lastPoint = nil
-                                }, including: tool == .tap ? .none : .all)
-                                .scaleEffect(zoom)
-                                .offset(pan)
-                                .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                        }
+                        ZoomableCanvas(
+                            image: image,
+                            drawing: tool != .tap,
+                            onTap: tapObject,
+                            onDraw: { point, isStart in
+                                if isStart { lastPoint = nil }
+                                touch(point)
+                            },
+                            onZoom: { zoom = $0 }
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .contentShape(Rectangle())
-                // Tap mode: drag with one finger to move around when zoomed in.
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 8)
-                        .onChanged { value in
-                            guard zoom > 1 else { return }
-                            pan = CGSize(width: panAtStart.width + value.translation.width,
-                                         height: panAtStart.height + value.translation.height)
-                        }
-                        .onEnded { _ in panAtStart = pan },
-                    including: tool == .tap ? .all : .none
-                )
-                .simultaneousGesture(
-                    MagnifyGesture()
-                        .onChanged { value in
-                            isPinching = true
-                            lastPoint = nil
-                            zoom = min(max(zoomAtStart * value.magnification, 1), 8)
-                        }
-                        .onEnded { _ in
-                            zoomAtStart = zoom
-                            isPinching = false
-                            if zoom == 1 { pan = .zero; panAtStart = .zero }
-                        }
-                )
-                .overlay(alignment: .topTrailing) {
-                    if zoom > 1 {
-                        Button {
-                            withAnimation { zoom = 1; zoomAtStart = 1; pan = .zero; panAtStart = .zero }
-                        } label: {
-                            Label("Fit", systemImage: "arrow.down.right.and.arrow.up.left")
-                                .font(Typography.caption)
-                                .padding(.horizontal, 10)
-                                .frame(minHeight: 32)
-                                .background(.ultraThinMaterial, in: Capsule())
-                        }
-                        .padding(Theme.Space.sm)
-                    }
-                }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
 
                 HStack(spacing: Theme.Space.sm) {
                     Button("Use whole photo") { finish(whole: true) }
@@ -317,7 +264,7 @@ struct CutoutPickerView: View {
     // MARK: Touches
 
     private func touch(_ point: CGPoint) {
-        guard tool != .tap, !isPinching, let mask else { return }
+        guard tool != .tap, let mask else { return }
         // The brush stays the same size on screen however far you zoom in.
         mask.stroke(from: lastPoint ?? point, to: point, brush: 0.06 / zoom, erasing: tool == .erase)
         lastPoint = point

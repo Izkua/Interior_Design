@@ -92,6 +92,7 @@
 		C61148B53DC487CB5D8F0CBB /* RoomBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */; };
 		C68D666B93814376E3C30A4C /* WallDecorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FFA1EAEFA4EEEBB65A7B30E /* WallDecorView.swift */; };
 		C8B83FFE9F2A1FC1197F6286 /* VisualizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */; };
+		CA382BDCA861C4C298E097D7 /* ZoomableCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BA4D035C959CDF85947B9D /* ZoomableCanvas.swift */; };
 		CAF5DDBA831115E24B9ECE6B /* LayoutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DADB90BB67F8CAFA48F4350 /* LayoutModel.swift */; };
 		CBF768B93827EECEB2C821F0 /* ProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6F10A41371D240FCE7CD3B /* ProfileSheet.swift */; };
 		CC5BC79DC77AFB0CB7A65D51 /* ProductDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A495AEA4C32A00097F84C75A /* ProductDetailView.swift */; };
@@ -200,6 +201,7 @@
 		8FC5D0D315FF6BEA2C234690 /* ARPlaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARPlaceView.swift; sourceTree = "<group>"; };
 		902916444206D959FD512890 /* StressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StressTests.swift; sourceTree = "<group>"; };
 		9150265953BD83A0A8A6FB7A /* SavedModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedModelsTests.swift; sourceTree = "<group>"; };
+		92BA4D035C959CDF85947B9D /* ZoomableCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableCanvas.swift; sourceTree = "<group>"; };
 		931929CDE4E0F9A8C8C7A9F7 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		93270E5F8B8995B8D34C0008 /* InteriorDesignApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteriorDesignApp.swift; sourceTree = "<group>"; };
 		99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizeTests.swift; sourceTree = "<group>"; };
@@ -522,6 +524,7 @@
 				23732D393DE32F45A037C28A /* ProductModelService.swift */,
 				10DCEE06879FAB20606F935A /* SavedModels.swift */,
 				C3F63A5BCDC1DFFD44CE0ACD /* SavedModelsView.swift */,
+				92BA4D035C959CDF85947B9D /* ZoomableCanvas.swift */,
 			);
 			path = ARPreview;
 			sourceTree = "<group>";
@@ -745,6 +748,7 @@
 				EEFA5F806B2BE54FD233A4C1 /* WallDecor.swift in Sources */,
 				C68D666B93814376E3C30A4C /* WallDecorView.swift in Sources */,
 				41AEB8DB91EA707424483377 /* WallElevationView.swift in Sources */,
+				CA382BDCA861C4C298E097D7 /* ZoomableCanvas.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
