@@ -27,7 +27,7 @@ enum ProductModelService {
     /// before, else from the backend (made there if it's the first time).
     static func model(productID: String) async throws -> Data {
         guard BackendConfig.productModelsEnabled else { throw Failure.notAvailable }
-        guard let file = cacheFile(productID) else { throw Failure.failed }
+        guard let file = await cacheFile(productID) else { throw Failure.failed }
         if let saved = try? Data(contentsOf: file) { return saved }
 
         var request = URLRequest(url: BackendConfig.functionsURL.appendingPathComponent("generate-3d"))
@@ -62,11 +62,10 @@ enum ProductModelService {
         }
     }
 
-    /// Where a product's model is kept on the phone (the system may clear
-    /// it when space runs low; it's fetched again for free).
+    /// Where a product's model is kept on the phone (listed under the
+    /// Catalog's 3D models button).
+    @MainActor
     static func cacheFile(_ productID: String) -> URL? {
-        guard productID.range(of: "^[A-Za-z0-9_-]{1,64}$", options: .regularExpression) != nil,
-              let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-        return caches.appendingPathComponent("ProductModels/\(productID).glb")
+        SavedModels.shared.modelFile(productID)
     }
 }

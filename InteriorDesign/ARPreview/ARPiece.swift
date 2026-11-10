@@ -21,6 +21,8 @@ struct ARPiece: Identifiable, Equatable {
     var modelData: Data?
     /// The catalog product's id, so an AI 3D model can be made of it.
     var productID: String?
+    /// The catalog product itself, for the saved 3D models list.
+    var product: CatalogProduct?
 
     var parts: [FurnitureShape.Part] {
         FurnitureShape.parts(type: type, widthCm: widthCm, depthCm: depthCm, heightCm: heightCm)
@@ -52,7 +54,8 @@ extension ARPiece {
             name: product.name, type: type, widthCm: w, depthCm: d, heightCm: h,
             colors: PhotoColors.colors(named: product.colors, type: type),
             imageURL: product.imageURL,
-            productID: product.isSample ? nil : product.id
+            productID: product.isSample ? nil : product.id,
+            product: product
         )
     }
 

@@ -22,6 +22,7 @@ struct CatalogView: View {
     @State private var showFilters = false
     @State private var showBudget = false
     @State private var showWishlist = false
+    @State private var showModels = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -107,8 +108,11 @@ struct CatalogView: View {
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Catalog")
             .toolbar {
-                // Left to right: wishlist, profile (profile stays far right).
+                // Left to right: 3D models, wishlist, profile (profile stays far right).
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    ToolbarIconButton(systemName: SavedModels.shared.entries.isEmpty ? "cube" : "cube.fill", label: "Saved 3D models") {
+                        showModels = true
+                    }
                     ToolbarIconButton(systemName: wishlist.isEmpty ? "heart" : "heart.fill", label: "Wishlist") {
                         showWishlist = true
                     }
@@ -120,6 +124,7 @@ struct CatalogView: View {
                 if let room { BudgetSheet(room: room) }
             }
             .navigationDestination(isPresented: $showWishlist) { WishlistView(room: room) }
+            .navigationDestination(isPresented: $showModels) { SavedModelsView() }
             .task(id: searchKey) {
                 await store.search(query, budget: budget, preferences: preferences, room: snapshot)
             }

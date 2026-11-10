@@ -396,6 +396,9 @@ final class ARPlaceController: NSObject {
             let model = try parsed.entity()
             guard models[id] == nil else { return }
             aiModelIDs.insert(id)
+            if let product = (pending.first { $0.id == id } ?? placed[id]?.piece)?.product {
+                SavedModels.shared.remember(product)
+            }
             addModel(model, to: id)
             if !cached { showHint("3D model ready. It's AI-generated, so details may differ.", seconds: 4) }
             if selected?.id == id { selected = placed[id]?.piece }
