@@ -201,7 +201,9 @@ struct GLBModel {
                 pbr.baseColor = .init(tint: tint)
             }
             pbr.roughness = .init(floatLiteral: source.roughness)
-            pbr.metallic = .init(floatLiteral: source.metallic)
+            // AI models often mark everything as metal, which looks like
+            // shiny foil; furniture is rarely that reflective.
+            pbr.metallic = .init(floatLiteral: min(source.metallic, 0.2))
             if let index { made[index] = pbr }
             return pbr
         }

@@ -53,6 +53,7 @@ struct ItemEditorSheet: View {
                         photoData: draft.photoData,
                         cutoutData: $draft.cutoutData,
                         modelData: $draft.modelData,
+                        cutoutSource: $draft.cutoutSource,
                         allowScan: true,
                         onScanned: useScan,
                         onNewModel: { _ in saveModelNow() },
@@ -319,6 +320,7 @@ struct ItemEditorSheet: View {
         guard let item else { return }
         item.modelData = draft.modelData
         item.cutoutData = draft.cutoutData
+        item.cutoutSource = draft.cutoutSource
         try? context.save()
     }
 

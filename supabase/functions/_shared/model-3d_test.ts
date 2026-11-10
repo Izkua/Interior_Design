@@ -1,6 +1,6 @@
 // Run with: deno test supabase/functions/_shared/
 import { assertEquals } from "jsr:@std/assert@1";
-import { bestImage, modelPath } from "./model-3d.ts";
+import { bestImage, modelPath, pointCount } from "./model-3d.ts";
 
 Deno.test("prefers a cleaned three-quarter view", () => {
   assertEquals(bestImage([
@@ -24,4 +24,18 @@ Deno.test("only safe product ids become file names", () => {
   assertEquals(modelPath("abc_123-X"), "abc_123-X.glb");
   assertEquals(modelPath("../secrets"), null);
   assertEquals(modelPath(""), null);
+});
+
+Deno.test("counts a model's points to catch broken results", () => {
+  const json = new TextEncoder().encode(JSON.stringify({
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+    accessors: [{ count: 668 }],
+  }));
+  const glb = new Uint8Array(20 + json.length);
+  const view = new DataView(glb.buffer);
+  glb.set(new TextEncoder().encode("glTF"), 0);
+  view.setUint32(12, json.length, true);
+  glb.set(json, 20);
+  assertEquals(pointCount(glb), 668);
+  assertEquals(pointCount(new Uint8Array(4)), 0);
 });

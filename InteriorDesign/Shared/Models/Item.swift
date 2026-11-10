@@ -86,6 +86,8 @@ final class Item {
     @Attribute(.externalStorage) var modelData: Data? = nil
     /// The piece cut out of its photo (PNG), as the person chose it.
     @Attribute(.externalStorage) var cutoutData: Data? = nil
+    /// Fingerprint of the photo the cutout was made from.
+    var cutoutSource: String? = nil
     var source: ItemSource
     /// True for things that should not move, like a built-in wardrobe.
     var isFixed: Bool

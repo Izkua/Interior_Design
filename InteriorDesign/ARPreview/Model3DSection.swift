@@ -1,5 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CryptoKit
+
+/// A short fingerprint of a photo, to tell whether the cutout was made
+/// from the current photo.
+enum PhotoFingerprint {
+    static func of(_ data: Data) -> String {
+        SHA256.hash(data: data).prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 /// The 3D part of an item or product screen, top to bottom: the 3D model
 /// (if there is one), the current cutout, Change cutout, then Make AI 3D
@@ -13,6 +22,10 @@ struct Model3DSection: View {
     let photoData: Data?
     @Binding var cutoutData: Data?
     @Binding var modelData: Data?
+    /// Which photo the cutout was made from (a fingerprint). Items pass
+    /// this so "Update cutout to current picture" shows only after the
+    /// photo changes; products leave it out (their photo doesn't change).
+    var cutoutSource: Binding<String?>?
     /// LiDAR "Scan in 3D", for your own items on Pro iPhones.
     var allowScan = false
     /// Called after a LiDAR scan with the model (for measuring the item).
@@ -79,10 +92,12 @@ struct Model3DSection: View {
                     }
                     HStack(alignment: .top, spacing: Theme.Space.sm) {
                         button("Change cutout", systemImage: "scissors") { showPicker = true }
-                        button(isUpdating ? "Updating…" : "Update cutout to current picture", systemImage: "arrow.triangle.2.circlepath", lines: 2) {
-                            Task { await updateToCurrentPicture() }
+                        if hasNewPicture {
+                            button(isUpdating ? "Updating…" : "Update cutout to current picture", systemImage: "arrow.triangle.2.circlepath", lines: 2) {
+                                Task { await updateToCurrentPicture() }
+                            }
+                            .disabled(isUpdating)
                         }
-                        .disabled(isUpdating)
                     }
                 }
 
@@ -128,16 +143,19 @@ struct Model3DSection: View {
             }
         }
         .task(id: photoData) { await findAutoCutout() }
-        .onChange(of: photoData) { _, _ in
-            // A new photo doesn't change the cutout: keep the one shown.
+        .onChange(of: photoData) { old, _ in
+            // A new photo doesn't change the cutout: keep the one shown,
+            // noting which photo it came from.
             if cutoutData == nil, let shown = autoCutout, let png = UIImage(cgImage: shown).pngData() {
                 cutoutData = png
+                cutoutSource?.wrappedValue = old.map(PhotoFingerprint.of)
             }
         }
         .fullScreenCover(isPresented: $showPicker) {
             if let photo {
                 CutoutPickerView(photo: photo, itemName: name) { png in
                     cutoutData = png
+                    markCutoutFromCurrentPhoto()
                     note = "Cutout updated."
                 }
             }
@@ -161,6 +179,16 @@ struct Model3DSection: View {
 
     private var photo: UIImage? { photoData.flatMap(UIImage.init(data:)) }
 
+    /// True when the cutout was made from an earlier photo.
+    private var hasNewPicture: Bool {
+        guard let source = cutoutSource?.wrappedValue, cutoutData != nil, let photoData else { return false }
+        return source != PhotoFingerprint.of(photoData)
+    }
+
+    private func markCutoutFromCurrentPhoto() {
+        cutoutSource?.wrappedValue = photoData.map(PhotoFingerprint.of)
+    }
+
     /// The iPhone's own cutout, shown until the person picks one.
     private func findAutoCutout() async {
         guard cutoutData == nil, autoCutout == nil, let photo else { return }
@@ -175,15 +203,17 @@ struct Model3DSection: View {
         defer { isUpdating = false }
         if let cut = await PhotoCutout.cutout(from: photo), let png = UIImage(cgImage: cut).pngData() {
             cutoutData = png
+            markCutoutFromCurrentPhoto()
             note = "Cutout updated from the current picture."
         } else if let whole = PhotoCutout.upright(photo), let png = UIImage(cgImage: whole).pngData() {
             cutoutData = png
+            markCutoutFromCurrentPhoto()
             note = "Nothing stood out in this picture, so the whole picture is used. Use Change cutout and Paint to pick the piece."
         }
     }
 
     private func makeModel() async {
-        guard let image = currentCutout, let png = UIImage(cgImage: image).pngData() else { return }
+        guard let image = currentCutout, let png = PhotoCutout.modelInput(image) else { return }
         isMaking = true
         defer { isMaking = false }
         note = "Making the 3D model… this takes about a minute."

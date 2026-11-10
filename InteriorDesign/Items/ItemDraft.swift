@@ -17,6 +17,8 @@ struct ItemDraft: Equatable {
     var modelData: Data?
     /// The chosen cutout of the photo (PNG); nil means pick automatically.
     var cutoutData: Data?
+    /// Fingerprint of the photo the cutout was made from.
+    var cutoutSource: String?
     /// The rooms it goes in; the first is its main room.
     var rooms: [Room] = []
     /// "Not sure yet": a candidate for every room.
@@ -45,6 +47,7 @@ struct ItemDraft: Equatable {
         photoData = item.photoData
         modelData = item.modelData
         cutoutData = item.cutoutData
+        cutoutSource = item.cutoutSource
         rooms = item.assignedRooms
         anyRoom = item.anyRoom
     }
@@ -94,6 +97,7 @@ struct ItemDraft: Equatable {
         item.photoData = photoData
         item.modelData = modelData
         item.cutoutData = cutoutData
+        item.cutoutSource = cutoutSource
         item.setRooms(rooms, anyRoom: anyRoom)
         item.isEstimated = false
     }

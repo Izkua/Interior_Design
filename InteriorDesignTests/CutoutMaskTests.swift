@@ -33,3 +33,17 @@ final class CutoutMaskTests: XCTestCase {
         XCTAssertNil(mask.cutout([]))
     }
 }
+
+final class ModelInputTests: XCTestCase {
+    func testCutoutIsCenteredOnASquareWithRoomAround() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let tall = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 600), format: format).image { c in
+            UIColor.brown.setFill(); c.fill(CGRect(x: 0, y: 0, width: 300, height: 600))
+        }
+        let png = try XCTUnwrap(PhotoCutout.modelInput(try XCTUnwrap(tall.cgImage)))
+        let image = try XCTUnwrap(UIImage(data: png)?.cgImage)
+        XCTAssertEqual(image.width, image.height, "square")
+        XCTAssertEqual(Double(image.height), 600 / 0.85, accuracy: 2, "the piece fills about 85%")
+    }
+}

@@ -21,8 +21,11 @@ struct CatalogView: View {
     @State private var selectedRoomID: UUID?
     @State private var showFilters = false
     @State private var showBudget = false
-    @State private var showWishlist = false
-    @State private var showModels = false
+    /// The screen pushed from the top bar. One destination for both: two
+    /// separate ones on the same screen made SwiftUI rebuild them in a
+    /// loop and froze the app.
+    enum Route: Hashable { case wishlist, models }
+    @State private var route: Route?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -111,10 +114,10 @@ struct CatalogView: View {
                 // Left to right: 3D models, wishlist, profile (profile stays far right).
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     ToolbarIconButton(systemName: SavedModels.shared.entries.isEmpty ? "cube" : "cube.fill", label: "Saved 3D models") {
-                        showModels = true
+                        route = .models
                     }
                     ToolbarIconButton(systemName: wishlist.isEmpty ? "heart" : "heart.fill", label: "Wishlist") {
-                        showWishlist = true
+                        route = .wishlist
                     }
                     ProfileButton()
                 }
@@ -123,8 +126,12 @@ struct CatalogView: View {
             .sheet(isPresented: $showBudget) {
                 if let room { BudgetSheet(room: room) }
             }
-            .navigationDestination(isPresented: $showWishlist) { WishlistView(room: room) }
-            .navigationDestination(isPresented: $showModels) { SavedModelsView() }
+            .navigationDestination(item: $route) { route in
+                switch route {
+                case .wishlist: WishlistView(room: room)
+                case .models: SavedModelsView()
+                }
+            }
             .task(id: searchKey) {
                 await store.search(query, budget: budget, preferences: preferences, room: snapshot)
             }

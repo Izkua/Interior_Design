@@ -18,7 +18,7 @@ import { error, json, safely, secret } from "../_shared/http.ts";
 import { checkPaidRequest, recordUse, reserveSpend } from "../_shared/paid.ts";
 import { adminClient, config, currentUser, underRateLimit } from "../_shared/supabase.ts";
 import type { C3Product } from "../_shared/products.ts";
-import { bestImage, BUCKET, MODEL_COST_CENTS, makeModel, modelPath } from "../_shared/model-3d.ts";
+import { bestImage, BrokenModelError, BUCKET, MODEL_COST_CENTS, makeModel, modelPath } from "../_shared/model-3d.ts";
 
 Deno.serve(safely(async (req) => {
   if (req.method !== "POST") return error("Use POST.", 405);
@@ -85,6 +85,10 @@ Deno.serve(safely(async (req) => {
     ]);
   } catch (e) {
     console.error("3D model failed", e instanceof Error ? e.message : e);
+    // A broken result isn't counted against the person's allowance.
+    if (e instanceof BrokenModelError) {
+      return error("The 3D model came out broken, so it wasn't saved and didn't use your credit. Try a cleaner cutout: clear things off the piece, or erase them.", 422);
+    }
     if (e instanceof Error && e.message === "timeout") return error("The 3D model took too long.", 504);
     return error("The 3D model couldn't be made.", 502);
   }
@@ -130,6 +134,10 @@ async function fromOwnPhoto(req: Request, base64: string): Promise<Response> {
     ]);
   } catch (e) {
     console.error("3D model failed", e instanceof Error ? e.message : e);
+    // A broken result isn't counted against the person's allowance.
+    if (e instanceof BrokenModelError) {
+      return error("The 3D model came out broken, so it wasn't saved and didn't use your credit. Try a cleaner cutout: clear things off the piece, or erase them.", 422);
+    }
     if (e instanceof Error && e.message === "timeout") return error("The 3D model took too long.", 504);
     return error("The 3D model couldn't be made.", 502);
   }

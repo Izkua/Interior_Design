@@ -68,6 +68,7 @@ enum ProductModelService {
             try? glb.write(to: file)
             return glb
         case 401: throw Failure.signInNeeded
+        case 422: throw Failure.limitReached(reply?.error ?? "The 3D model couldn't be made from this picture.")
         case 429, 503: throw Failure.limitReached(reply?.error ?? "You've reached the limit for 3D models for now.")
         case 404, 501: throw Failure.notAvailable
         default: throw Failure.failed
@@ -103,6 +104,7 @@ enum ProductModelService {
             guard let base64 = reply?.glb, let glb = Data(base64Encoded: base64), GLBModel.isGLB(glb) else { throw Failure.failed }
             return glb
         case 401: throw Failure.signInNeeded
+        case 422: throw Failure.limitReached(reply?.error ?? "The 3D model couldn't be made from this picture.")
         case 429, 503: throw Failure.limitReached(reply?.error ?? "You've reached the limit for 3D models for now.")
         case 404, 501: throw Failure.notAvailable
         default: throw Failure.failed

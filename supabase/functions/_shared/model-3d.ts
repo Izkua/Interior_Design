@@ -44,6 +44,36 @@ export function modelPath(productID: string): string | null {
   return /^[A-Za-z0-9_-]{1,64}$/.test(productID) ? `${productID}.glb` : null;
 }
 
+/** The model came back unusable (a scrap, not the piece). */
+export class BrokenModelError extends Error {}
+
+/**
+ * How many corner points the model has. A real piece of furniture has
+ * thousands; a broken result (a small scrap or a flat sheet) only a few
+ * hundred.
+ */
+export function pointCount(glb: Uint8Array): number {
+  const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  if (glb.length < 20) return 0;
+  const jsonLength = view.getUint32(12, true);
+  try {
+    const doc = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLength)));
+    let total = 0;
+    for (const mesh of doc.meshes ?? []) {
+      for (const primitive of mesh.primitives ?? []) {
+        const accessor = doc.accessors?.[primitive.attributes?.POSITION];
+        total += accessor?.count ?? 0;
+      }
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+/** Fewer points than this means the model failed. */
+export const MIN_POINTS = 1500;
+
 /** Calls SPAR3D with one photo; returns the GLB file. */
 export async function makeModel(apiKey: string, photo: Uint8Array, mime: string): Promise<Uint8Array> {
   const form = new FormData();
@@ -63,5 +93,6 @@ export async function makeModel(apiKey: string, photo: Uint8Array, mime: string)
   if (bytes.length < 20 || new TextDecoder().decode(bytes.slice(0, 4)) !== "glTF") {
     throw new Error("SPAR3D didn't return a GLB file.");
   }
+  if (pointCount(bytes) < MIN_POINTS) throw new BrokenModelError("broken");
   return bytes;
 }

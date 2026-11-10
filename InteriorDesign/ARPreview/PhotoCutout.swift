@@ -42,6 +42,24 @@ enum PhotoCutout {
         }.cgImage
     }
 
+    /// The cutout as the AI model maker likes it: centered on a square,
+    /// see-through canvas with a little room around it (the piece fills
+    /// about 85%), at most 1024 pixels. PNG.
+    static func modelInput(_ cutout: CGImage) -> Data? {
+        let longest = CGFloat(max(cutout.width, cutout.height))
+        let side = min(1024, (longest / 0.85).rounded())
+        let scale = side * 0.85 / longest
+        let size = CGSize(width: CGFloat(cutout.width) * scale, height: CGFloat(cutout.height) * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+            UIImage(cgImage: cutout).draw(in: CGRect(x: (side - size.width) / 2, y: (side - size.height) / 2,
+                                                     width: size.width, height: size.height))
+        }
+        return image.pngData()
+    }
+
     /// How big to stand the photo up so it fits the piece's true size:
     /// as tall as the piece unless that would make it wider than the
     /// piece's widest side. In meters.

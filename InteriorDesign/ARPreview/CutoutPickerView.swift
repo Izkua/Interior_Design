@@ -76,6 +76,16 @@ final class CutoutMask: @unchecked Sendable {
         }
     }
 
+    /// Puts painting and erasing back to an earlier copy (for undo).
+    func restore(_ strokes: Strokes) {
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        for (layer, image) in [(paint, strokes.painted), (erase, strokes.erased)] {
+            layer.setFillColor(gray: 0, alpha: 1)
+            layer.fill(rect)
+            if let image { layer.draw(image, in: rect) }
+        }
+    }
+
     /// Clears painting and erasing.
     func resetStrokes() {
         for layer in [paint, erase] {
@@ -175,6 +185,8 @@ struct CutoutPickerView: View {
     /// Pinch to zoom (1 = whole photo); move around with one finger in
     /// Tap mode, or two fingers in any mode.
     @State private var zoom: CGFloat = 1
+    @State private var undoStack: [Step] = []
+    @State private var redoStack: [Step] = []
 
     private var instructions: String {
         switch tool {
@@ -223,13 +235,10 @@ struct CutoutPickerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
 
                 HStack(spacing: Theme.Space.sm) {
-                    Button("Use whole photo") { finish(whole: true) }
-                        .font(Typography.subheadline)
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    PrimaryButton(title: "Use selection", systemImage: "checkmark") { finish() }
                         .disabled(isLoading)
-                    PrimaryButton(title: "Use selection", systemImage: "checkmark") { finish(whole: false) }
-                        .disabled(isLoading)
+                    historyButton("arrow.uturn.backward", label: "Undo", enabled: !undoStack.isEmpty, action: undo)
+                    historyButton("arrow.uturn.forward", label: "Redo", enabled: !redoStack.isEmpty, action: redo)
                 }
             }
             .padding(Theme.Space.md)
@@ -239,14 +248,6 @@ struct CutoutPickerView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }.frame(minHeight: Theme.minTap)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Start over") {
-                        mask?.resetStrokes()
-                        chosen = mask?.allObjects ?? []
-                        refresh()
-                    }
-                    .frame(minHeight: Theme.minTap)
                 }
             }
         }
@@ -265,6 +266,8 @@ struct CutoutPickerView: View {
 
     private func touch(_ point: CGPoint) {
         guard tool != .tap, let mask else { return }
+        // A new stroke can be undone as one step.
+        if lastPoint == nil { remember() }
         // The brush stays the same size on screen however far you zoom in.
         mask.stroke(from: lastPoint ?? point, to: point, brush: 0.06 / zoom, erasing: tool == .erase)
         lastPoint = point
@@ -273,8 +276,54 @@ struct CutoutPickerView: View {
 
     private func tapObject(_ point: CGPoint) {
         guard let mask, let index = mask.object(at: point) else { return }
+        remember()
         if chosen.contains(index) { chosen.remove(index) } else { chosen.insert(index) }
         refresh()
+    }
+
+    // MARK: Undo and redo
+
+    /// One step of the editor: which objects are in, and what's painted.
+    private struct Step { var chosen: IndexSet; var strokes: CutoutMask.Strokes }
+    private var current: Step? { mask.map { Step(chosen: chosen, strokes: $0.strokes()) } }
+
+    /// Saves the state before a change, so it can be undone.
+    private func remember() {
+        guard let current else { return }
+        undoStack.append(current)
+        if undoStack.count > 40 { undoStack.removeFirst() }
+        redoStack.removeAll()
+    }
+
+    private func undo() {
+        guard let previous = undoStack.popLast(), let current else { return }
+        redoStack.append(current)
+        apply(previous)
+    }
+
+    private func redo() {
+        guard let next = redoStack.popLast(), let current else { return }
+        undoStack.append(current)
+        apply(next)
+    }
+
+    private func apply(_ step: Step) {
+        chosen = step.chosen
+        mask?.restore(step.strokes)
+        refresh()
+    }
+
+    private func historyButton(_ systemImage: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 52, height: 52)
+                .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+        .foregroundStyle(enabled ? Theme.accent : Theme.textSecondary.opacity(0.4))
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     /// Redraws the preview; a newer request replaces an older one.
@@ -289,8 +338,8 @@ struct CutoutPickerView: View {
         }
     }
 
-    private func finish(whole: Bool) {
-        let image = whole ? (mask?.photo ?? PhotoCutout.upright(photo)) : mask?.cutout(chosen)
+    private func finish() {
+        let image = mask?.cutout(chosen)
         guard let image, let data = UIImage(cgImage: image).pngData() else { return }
         onDone(data)
         dismiss()
