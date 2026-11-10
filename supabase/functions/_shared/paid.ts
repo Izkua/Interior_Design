@@ -12,7 +12,7 @@ import type { User } from "npm:@supabase/supabase-js@2.45.4";
 import { error } from "./http.ts";
 import { adminClient, config, currentUser, trySpend } from "./supabase.ts";
 
-type Kind = "image" | "label" | "scan";
+type Kind = "image" | "label" | "scan" | "model3d";
 
 interface FeatureConfig {
   enabled: boolean;
@@ -21,7 +21,12 @@ interface FeatureConfig {
   monthly_budget_cents: number;
 }
 
-const CONFIG_KEY: Record<Kind, string> = { image: "image_generation", label: "labeling", scan: "room_scan" };
+const CONFIG_KEY: Record<Kind, string> = {
+  image: "image_generation",
+  label: "labeling",
+  scan: "room_scan",
+  model3d: "model_3d",
+};
 
 /** Returns the user if every check passes, or the Response to send back. */
 export async function checkPaidRequest(req: Request, kind: Kind, costCents: number): Promise<User | Response> {

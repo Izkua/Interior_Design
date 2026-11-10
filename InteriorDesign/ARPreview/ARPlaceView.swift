@@ -32,7 +32,7 @@ struct ARPlaceView: View {
             VStack(spacing: Theme.Space.sm) {
                 topBar
                 Spacer()
-                if let hint = controller.hint {
+                if let hint = controller.message ?? controller.hint {
                     Text(hint)
                         .font(Typography.subheadline)
                         .foregroundStyle(.white)
@@ -45,7 +45,7 @@ struct ARPlaceView: View {
             }
             .padding(Theme.Space.md)
         }
-        .animation(.easeInOut(duration: 0.2), value: controller.hint)
+        .animation(.easeInOut(duration: 0.2), value: controller.message ?? controller.hint)
         .onAppear { controller.queue(start) }
         .statusBarHidden()
     }
@@ -158,6 +158,7 @@ struct ARPlaceView: View {
             }
             Spacer(minLength: 0)
             if piece.isEstimated { Tag(text: "Estimated") }
+            if controller.aiModelIDs.contains(piece.id) { Tag(text: "AI-generated 3D") }
         }
     }
 
@@ -191,6 +192,7 @@ private struct ARContainer: UIViewRepresentable {
 
 /// Runs the AR scene: finds the floor under the aiming point, places
 /// pieces there, and keeps track of which one is picked.
+@MainActor
 @Observable
 final class ARPlaceController: NSObject {
     /// Pieces waiting to be placed, first one next.
@@ -201,8 +203,12 @@ final class ARPlaceController: NSObject {
     private(set) var placedCount = 0
     /// A short instruction over the camera, or nil.
     private(set) var hint: String? = "Move your phone slowly to find the floor."
+    /// A message about the 3D model, shown over the floor hint.
+    private(set) var message: String?
     /// True once at least one piece has a cut-out photo to show.
     private(set) var hasPhotos = false
+    /// Pieces shown with an AI-made 3D model, which get a label saying so.
+    private(set) var aiModelIDs: Set<UUID> = []
 
     /// How pieces are drawn: their cut-out photo standing in the room, or
     /// the colored box shape.
@@ -262,6 +268,9 @@ final class ARPlaceController: NSObject {
                 addModel(model, to: piece.id)
                 continue
             }
+            if let productID = piece.productID {
+                Task { [weak self] in await self?.makeAIModel(productID, for: piece.id) }
+            }
             Task { [weak self] in
                 guard let photo = await piece.loadPhoto() else { return }
                 // Saved items were colored from their photo already.
@@ -286,7 +295,9 @@ final class ARPlaceController: NSObject {
         }
         if let model = models[original] {
             models[copy.id] = model
+            if aiModelIDs.contains(original) { aiModelIDs.insert(copy.id) }
         }
+        copy.productID = nil   // its model, if any, was copied above
         queue([copy])
     }
 
@@ -367,6 +378,45 @@ final class ARPlaceController: NSObject {
             Self.addPhoto(cutout, of: entry.piece, to: entry.entity)
             applyLook()
         }
+    }
+
+    /// Fetches (or has the backend make) an AI 3D model of a catalog
+    /// product. The cut-out photo shows meanwhile, and stays if this fails.
+    private func makeAIModel(_ productID: String, for id: UUID) async {
+        let cached = ProductModelService.cacheFile(productID).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        if !cached { showHint("Making an AI 3D model of this product…") }
+        do {
+            let data = try await ProductModelService.model(productID: productID)
+            let parsed = try await Task.detached { try GLBModel(data: data) }.value
+            let model = try parsed.entity()
+            guard models[id] == nil else { return }
+            aiModelIDs.insert(id)
+            addModel(model, to: id)
+            if !cached { showHint("3D model ready. It's AI-generated, so details may differ.", seconds: 4) }
+            if selected?.id == id { selected = placed[id]?.piece }
+        } catch let failure as ProductModelService.Failure {
+            if failure != .notAvailable { showHint(failure.localizedDescription + " Showing the photo instead.", seconds: 4) } else { clearHint() }
+        } catch {
+            showHint("The 3D model couldn't be opened. Showing the photo instead.", seconds: 4)
+        }
+    }
+
+    @ObservationIgnored private var hintTask: Task<Void, Never>?
+    /// A message over the camera; with `seconds`, it goes away by itself.
+    private func showHint(_ text: String, seconds: Double? = nil) {
+        hintTask?.cancel()
+        message = text
+        guard let seconds else { return }
+        hintTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            self?.message = nil
+        }
+    }
+
+    private func clearHint() {
+        hintTask?.cancel()
+        message = nil
     }
 
     private func addModel(_ model: Entity, to id: UUID) {

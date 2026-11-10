@@ -53,7 +53,8 @@ export interface C3Product {
   id: string;
   title: string;
   brands?: { id: string; name: string }[];
-  images?: { url: string; cleaned_url?: string | null; is_main_image?: boolean }[];
+  /** shot_type: "hero", "angle_view", "lifestyle", "detail", "size_chart", ... */
+  images?: { url: string; cleaned_url?: string | null; is_main_image?: boolean; shot_type?: string | null }[];
   category?: { slug: string; title: string } | null;
   materials?: string[] | null;
   colors?: { hex: string; percentage?: number }[];
