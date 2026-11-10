@@ -34,10 +34,21 @@ extension Room {
     /// Changes one piece, then keeps it on its wall.
     func updateDecor(id: UUID, _ change: (inout WallDecor) -> Void) {
         guard let index = wallDecor.firstIndex(where: { $0.id == id }) else { return }
-        var piece = wallDecor[index]
+        let old = wallDecor[index]
+        var piece = old
         change(&piece)
-        wallDecor[index] = WallDecorGeometry.clamped(piece, wallLength: wallLength(piece.wall), ceiling: ceilingHeightCm)
+        piece = WallDecorGeometry.clamped(piece, wallLength: wallLength(piece.wall), ceiling: ceilingHeightCm)
+        wallDecor[index] = piece
         updatedAt = Date()
+        // Keep the piece in Current Items the same name and size.
+        if let itemID = piece.itemID,
+           old.name != piece.name || old.widthCm != piece.widthCm || old.heightCm != piece.heightCm || old.depthCm != piece.depthCm,
+           let item = allItems.first(where: { $0.uuid == itemID }) {
+            item.name = piece.name
+            item.widthCm = piece.widthCm
+            item.heightCm = piece.heightCm
+            item.depthCm = piece.depthCm
+        }
     }
 
     /// Replaces several pieces at once (for "line them up").

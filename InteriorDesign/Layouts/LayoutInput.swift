@@ -9,6 +9,11 @@ extension Room {
         layouts.first { $0.isChosen }
     }
 
+    /// The room's furniture: everything that stands on the floor.
+    var furnitureItems: [Item] {
+        allItems.filter { $0.type.category == .furniture }
+    }
+
     var layoutRoom: LayoutRoom {
         LayoutRoom(corners: corners, features: features)
     }
@@ -17,7 +22,8 @@ extension Room {
     /// spot in the chosen layout.
     var layoutItems: [LayoutItem] {
         let current = Dictionary((chosenLayout?.placements ?? []).map { ($0.itemID, $0) }, uniquingKeysWith: { a, _ in a })
-        return allItems
+        // Only furniture stands on the floor plan; decor has its own pages.
+        return furnitureItems
             .map { item in
                 LayoutItem(
                     id: item.uuid,

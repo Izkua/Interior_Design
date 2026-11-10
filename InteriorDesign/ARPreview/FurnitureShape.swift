@@ -45,7 +45,8 @@ enum FurnitureShape {
         case .shelf: return shelf(w, d, h)
         case .lamp: return lamp(w, d, h)
         case .rug: return [box(x: 0, y: 0, z: 0, w: w, h: min(h, 0.02), d: d, .main)]
-        case .other: return [box(x: 0, y: 0, z: 0, w: w, h: h, d: d, .main, radius: 0.01)]
+        case .tableLamp: return lamp(w, d, h)
+        default: return [box(x: 0, y: 0, z: 0, w: w, h: h, d: d, .main, radius: 0.01)]
         }
     }
 

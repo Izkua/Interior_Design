@@ -36,6 +36,8 @@ final class CatalogStore {
         var room: LayoutRoom
         var items: [LayoutItem]
         var hasChosenLayout: Bool
+        /// For checking wall decor and small decor.
+        var decor = DecorSpace()
     }
 
     func search(_ query: CatalogQuery, budget: ShoppingBudget, preferences: ShoppingPreferences, room: RoomSnapshot?) async {
@@ -89,8 +91,16 @@ final class CatalogStore {
             ? nil
             : "Checked against the top suggested layout. Choose a layout for an exact check."
         var results: [String: FitResult] = [:]
+        let walls = snapshot.decor.walls(placed: furniture, corners: snapshot.room.corners)
         for product in products {
-            results[product.id] = FitCheck.check(product, room: snapshot.room, furniture: furniture)
+            switch product.type?.category {
+            case .wallDecor?:
+                results[product.id] = DecorFit.wall(product, walls: walls, space: snapshot.decor)
+            case .smallDecor?:
+                results[product.id] = DecorFit.surface(product, space: snapshot.decor)
+            default:
+                results[product.id] = FitCheck.check(product, room: snapshot.room, furniture: furniture)
+            }
         }
         return (results, note)
     }

@@ -305,13 +305,7 @@ struct CaptureConfirmView: View {
                                 Tag(text: "\(Int((label.confidence * 100).rounded()))% sure")
                             }
                         }
-                        FlowLayout(spacing: Theme.Space.sm) {
-                            ForEach(ItemType.allCases) { type in
-                                Chip(title: type.displayName, systemImage: type.symbol, isSelected: draft.type == type) {
-                                    draft.setType(type)
-                                }
-                            }
-                        }
+                        ItemTypePicker(selection: Binding(get: { draft.type }, set: { if let type = $0 { draft.setType(type) } }))
                         TextField(draft.type.displayName, text: $draft.name)
                             .font(Typography.headline)
                             .padding(.horizontal, 12)

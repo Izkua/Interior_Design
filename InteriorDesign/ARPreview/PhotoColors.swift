@@ -2,7 +2,7 @@ import UIKit
 
 /// A simple color, 0...1 per channel. Kept apart from UIKit types so the
 /// color picking can be tested.
-struct RGB: Equatable {
+struct RGB: Hashable, Sendable {
     var r: Double, g: Double, b: Double
 
     var uiColor: UIColor { UIColor(red: r, green: g, blue: b, alpha: 1) }

@@ -14,6 +14,9 @@ struct CatalogView: View {
     @AppStorage(SettingsKey.preferredStyles) private var stylesCSV = ""
     @AppStorage(SettingsKey.preferredMaterials) private var materialsCSV = ""
     @AppStorage(SettingsKey.minimumRating) private var minimumRating: Double = 0
+    @AppStorage(SettingsKey.matchRoomColors) private var matchRoomColors = true
+    /// The room's colors and mood, worked out from its items' photos.
+    @State private var vibe: RoomVibe?
 
     @State private var store = CatalogStore()
     @State private var query = CatalogQuery()
@@ -44,11 +47,12 @@ struct CatalogView: View {
 
     private var preferences: ShoppingPreferences {
         func set(_ csv: String) -> Set<String> { Set(csv.split(separator: ",").map(String.init)) }
-        return ShoppingPreferences(styles: set(stylesCSV), materials: set(materialsCSV), minRating: minimumRating)
+        return ShoppingPreferences(styles: set(stylesCSV), materials: set(materialsCSV), minRating: minimumRating,
+                                   vibe: matchRoomColors ? vibe : nil)
     }
 
     private var snapshot: CatalogStore.RoomSnapshot? {
-        room.map { CatalogStore.RoomSnapshot(room: $0.layoutRoom, items: $0.layoutItems, hasChosenLayout: $0.chosenLayout != nil) }
+        room.map { CatalogStore.RoomSnapshot(room: $0.layoutRoom, items: $0.layoutItems, hasChosenLayout: $0.chosenLayout != nil, decor: $0.decorSpace) }
     }
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
@@ -69,7 +73,19 @@ struct CatalogView: View {
                         gapsSection
                     }
 
+                    if let vibe {
+                        vibeCard(vibe)
+                    }
+
                     searchBar
+
+                    CategoryFilterRow(selection: Binding(
+                        get: { query.category },
+                        set: { category in
+                            query.category = category
+                            if let type = query.type, type.category != category { query.type = nil }
+                        }
+                    ), padded: false)
 
                     if store.isLoading && store.results.isEmpty {
                         // Grey placeholder cards while searching.
@@ -137,18 +153,24 @@ struct CatalogView: View {
             }
             .task(id: gapsKey) {
                 guard let room else { store.gaps = []; return }
-                await store.fillGaps(MissingPieces.suggest(for: room.layoutItems), budget: budget, preferences: preferences, room: snapshot)
+                let decor = Set(room.items(in: .wallDecor).map(\.type) + room.items(in: .smallDecor).map(\.type)
+                                + room.wallDecor.map { $0.kind.itemType })
+                await store.fillGaps(MissingPieces.suggest(for: room.layoutItems, decor: decor), budget: budget, preferences: preferences, room: snapshot)
+            }
+            .task(id: room?.decorSignature ?? "") {
+                vibe = room?.vibe()
+                try? context.save()
             }
         }
     }
 
     /// Re-search when any of these change.
     private var searchKey: String {
-        "\(query.hashValue)|\(budget.total ?? -1)|\(budget.committed)|\(room?.layoutSignature ?? "")|\(stylesCSV)|\(materialsCSV)"
+        "\(query.hashValue)|\(budget.total ?? -1)|\(budget.committed)|\(room?.decorSignature ?? "")|\(stylesCSV)|\(materialsCSV)|\(matchRoomColors)|\(vibe?.title ?? "")"
     }
 
     private var gapsKey: String {
-        "\(room?.layoutSignature ?? "")|\(budget.total ?? -1)|\(budget.committed)"
+        "\(room?.decorSignature ?? "")|\(budget.total ?? -1)|\(budget.committed)|\(matchRoomColors)|\(vibe?.title ?? "")"
     }
 
     // MARK: Budget
@@ -195,6 +217,43 @@ struct CatalogView: View {
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }
+            }
+        }
+    }
+
+    // MARK: Room colors
+
+    /// The room's mood and main colors, and a switch to rank by them.
+    private func vibeCard(_ vibe: RoomVibe) -> some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm) {
+                HStack(spacing: Theme.Space.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(room?.name ?? "Your room")'s vibe")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                        Text(vibe.title)
+                            .font(Typography.headline)
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    Spacer()
+                    HStack(spacing: -6) {
+                        ForEach(Array(vibe.swatches.enumerated()), id: \.offset) { _, color in
+                            Circle()
+                                .fill(Color(uiColor: color.uiColor))
+                                .frame(width: 26, height: 26)
+                                .overlay(Circle().stroke(Theme.surface, lineWidth: 2))
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+                Toggle("Match my room's colors", isOn: $matchRoomColors)
+                    .font(Typography.subheadline)
+                    .tint(Theme.accent)
+                Text("From the photos of your items: mostly \(vibe.colorNames.prefix(3).map { $0.lowercased() }.formatted(.list(type: .and))). Worked out on your phone.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -255,7 +314,7 @@ struct CatalogView: View {
     }
 
     private var activeFilters: Bool {
-        query.type != nil || query.minPrice != nil || query.maxPrice != nil || query.minRating > 0
+        query.type != nil || query.category != nil || query.minPrice != nil || query.maxPrice != nil || query.minRating > 0
             || !query.materials.isEmpty || !query.styles.isEmpty || !query.colors.isEmpty
     }
 }

@@ -221,7 +221,7 @@ struct ProductDetailView: View {
             // from the wishlist, or a different room was picked here.
             guard let room = activeRoom, fit == nil || room.uuid != self.room?.uuid else { return }
             checkedFit = nil
-            let snapshot = CatalogStore.RoomSnapshot(room: room.layoutRoom, items: room.layoutItems, hasChosenLayout: room.chosenLayout != nil)
+            let snapshot = CatalogStore.RoomSnapshot(room: room.layoutRoom, items: room.layoutItems, hasChosenLayout: room.chosenLayout != nil, decor: room.decorSpace)
             let product = self.product
             checkedFit = await Task.detached { CatalogStore.fitResults(for: [product], in: snapshot).results[product.id] }.value
         }
@@ -278,6 +278,8 @@ struct ProductDetailView: View {
                 switch fitResult {
                 case .fits:
                     Text("There's a spot for it in \(activeRoom?.name ?? "your room") that keeps doors and walkways clear.")
+                case .fitsSpace(let text):
+                    Text("\(text), with room to spare.")
                 case .doesNotFit(let reason):
                     Text(reason)
                 case .unknownSize:
@@ -297,7 +299,7 @@ struct ProductDetailView: View {
         guard !isPreparingPreview else { return }
         isPreparingPreview = true
         defer { isPreparingPreview = false }
-        let snapshot = CatalogStore.RoomSnapshot(room: room.layoutRoom, items: room.layoutItems, hasChosenLayout: room.chosenLayout != nil)
+        let snapshot = CatalogStore.RoomSnapshot(room: room.layoutRoom, items: room.layoutItems, hasChosenLayout: room.chosenLayout != nil, decor: room.decorSpace)
         let furniture = await Task.detached { CatalogStore.furniturePlacements(snapshot).map(\.placement) }.value
         preview = PreviewTarget(
             furniture: furniture,

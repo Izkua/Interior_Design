@@ -159,6 +159,8 @@ extension ItemType {
         case .tvStand: return 0
         case .lamp, .rug: return 0
         case .other: return 45
+        // Decor never stands on the floor plan.
+        default: return 0
         }
     }
 
@@ -192,6 +194,7 @@ extension ItemType {
         case .lamp: return 6
         case .shelf: return 7
         case .rug: return 8
+        default: return 9
         }
     }
 }

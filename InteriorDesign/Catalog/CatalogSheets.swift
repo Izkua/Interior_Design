@@ -17,11 +17,17 @@ struct CatalogFiltersSheet: View {
                     AppCard {
                         VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
                             SectionHeader(title: "What kind")
-                            FlowLayout(spacing: Theme.Space.sm) {
-                                Chip(title: "Anything", isSelected: draft.type == nil) { draft.type = nil }
-                                ForEach(ItemType.allCases.filter { $0 != .other }) { type in
-                                    Chip(title: type.displayName, systemImage: type.symbol, isSelected: draft.type == type) {
-                                        draft.type = type
+                            CategoryFilterRow(selection: Binding(
+                                get: { draft.category },
+                                set: { draft.category = $0; draft.type = nil }
+                            ), padded: false)
+                            if let category = draft.category {
+                                FlowLayout(spacing: Theme.Space.sm) {
+                                    Chip(title: "Any \(category.title.lowercased())", isSelected: draft.type == nil) { draft.type = nil }
+                                    ForEach(category.types.filter { $0 != .other }) { type in
+                                        Chip(title: type.displayName, systemImage: type.symbol, isSelected: draft.type == type) {
+                                            draft.type = type
+                                        }
                                     }
                                 }
                             }

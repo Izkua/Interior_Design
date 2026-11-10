@@ -14,6 +14,8 @@ enum SettingsKey {
     /// without paying for a model.
     static let demoAIFeatures = "demoAIFeatures"
     static let didFinishOnboarding = "didFinishOnboarding"
+    /// Rank catalog products by how well their colors suit the room.
+    static let matchRoomColors = "matchRoomColors"
 }
 
 /// Styles a person can say they like. Used by the profile and, later,

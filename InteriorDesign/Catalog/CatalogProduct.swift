@@ -48,6 +48,8 @@ struct CatalogProduct: Codable, Hashable, Identifiable, Sendable {
 /// What to search for. Every filter is optional.
 struct CatalogQuery: Codable, Hashable, Sendable {
     var text = ""
+    /// Furniture, wall decor, or small decor. Nil means any.
+    var category: ItemCategory?
     var type: ItemType?
     var minPrice: Double?
     var maxPrice: Double?
@@ -140,6 +142,21 @@ enum ProductNormalizer {
     static func itemType(_ category: String?, name: String) -> ItemType? {
         let text = "\(category ?? "") \(name)".lowercased()
         let words: [(ItemType, [String])] = [
+            // Decor first, so "table lamp" isn't read as a table.
+            (.tableLamp, ["table lamp", "desk lamp", "bedside lamp"]),
+            (.wallClock, ["wall clock"]),
+            (.tableClock, ["desk clock", "alarm clock", "table clock", "mantel clock"]),
+            (.wallShelf, ["floating shelf", "wall shelf", "wall-mounted shelf"]),
+            (.mirror, ["mirror"]),
+            (.poster, ["poster"]),
+            (.canvasArt, ["canvas"]),
+            (.framedArt, ["framed print", "framed art", "wall art", "art print", "picture frame"]),
+            (.monitor, ["monitor"]),
+            (.plant, ["plant", "planter", "flower pot", "plant pot"]),
+            (.vase, ["vase"]),
+            (.candle, ["candle"]),
+            (.deskStorage, ["desk organizer", "pen holder", "desktop organizer", "storage box", "desk tray"]),
+            (.books, ["book set", "decorative books", "coffee table book"]),
             (.tvStand, ["tv stand", "media console", "tv console", "entertainment center"]),
             (.sofa, ["sofa", "couch", "sectional", "loveseat"]),
             (.bed, ["bed frame", "platform bed", " bed"]),

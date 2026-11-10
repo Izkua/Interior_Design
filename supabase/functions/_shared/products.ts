@@ -32,6 +32,8 @@ export interface AppProduct {
 export interface AppQuery {
   text?: string;
   type?: string | null;
+  /** "furniture", "wallDecor", or "smallDecor". */
+  category?: string | null;
   minPrice?: number | null;
   maxPrice?: number | null;
   minRating?: number;
@@ -77,6 +79,21 @@ export function toCm(length?: C3Length | null): number | null {
 
 /** Our item types, matched from Channel3's category or the product title. */
 const TYPE_WORDS: [string, string[]][] = [
+  // Decor first, so "table lamp" isn't read as a table.
+  ["tableLamp", ["table lamp", "desk lamp", "bedside lamp"]],
+  ["wallClock", ["wall clock"]],
+  ["tableClock", ["desk clock", "alarm clock", "table clock", "mantel clock"]],
+  ["wallShelf", ["floating shelf", "wall shelf", "wall-mounted shelf"]],
+  ["mirror", ["mirror"]],
+  ["poster", ["poster"]],
+  ["canvasArt", ["canvas"]],
+  ["framedArt", ["framed print", "framed art", "wall art", "art print", "picture frame"]],
+  ["monitor", ["monitor"]],
+  ["plant", ["plant", "planter", "flower pot", "plant pot"]],
+  ["vase", ["vase"]],
+  ["candle", ["candle"]],
+  ["deskStorage", ["desk organizer", "pen holder", "desktop organizer", "storage box", "desk tray"]],
+  ["books", ["book set", "decorative books", "coffee table book"]],
   ["tvStand", ["tv stand", "media console", "tv console", "entertainment center"]],
   ["sofa", ["sofa", "couch", "sectional", "loveseat"]],
   ["bed", ["bed frame", "platform bed", "beds", " bed"]],
@@ -154,6 +171,15 @@ export function normalize(p: C3Product): AppProduct | null {
 const TYPE_SEARCH: Record<string, string> = {
   sofa: "sofa", bed: "bed frame", desk: "desk", table: "table", chair: "accent chair",
   dresser: "dresser", shelf: "bookshelf", tvStand: "tv stand", lamp: "floor lamp", rug: "area rug",
+  poster: "poster print", framedArt: "framed wall art", canvasArt: "canvas wall art", mirror: "wall mirror",
+  wallShelf: "floating wall shelf", wallClock: "wall clock", plant: "artificial plant in pot", vase: "decorative vase",
+  books: "decorative books", tableLamp: "table lamp", monitor: "computer monitor", deskStorage: "desk organizer",
+  tableClock: "desk clock", candle: "candle holder",
+};
+
+/** Search words for a kind of item, when no type is picked. */
+const CATEGORY_SEARCH: Record<string, string> = {
+  furniture: "furniture", wallDecor: "wall decor", smallDecor: "home decor accents",
 };
 
 /** sRGB hex for each color the app offers, for Channel3's color filter. */
@@ -167,7 +193,8 @@ export function channel3Request(q: AppQuery) {
   // Materials and styles have no reliable filter without knowing the
   // category's attribute names, so they go in the search words (Channel3
   // recommends this over dropping them).
-  const words = [q.text?.trim(), q.type ? TYPE_SEARCH[q.type] : null, ...(q.materials ?? []), ...(q.styles ?? [])]
+  const kind = q.type ? TYPE_SEARCH[q.type] : q.category ? CATEGORY_SEARCH[q.category] : null;
+  const words = [q.text?.trim(), kind, ...(q.materials ?? []), ...(q.styles ?? [])]
     .filter((w): w is string => !!w && w.length > 0);
   const filters: Record<string, unknown> = {};
   const price: Record<string, number> = {};

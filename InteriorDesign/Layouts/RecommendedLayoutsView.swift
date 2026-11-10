@@ -12,9 +12,12 @@ struct RecommendedLayoutsView: View {
 
     /// Opens on this room (from a room's Furniture page); otherwise the
     /// most recently edited one.
-    init(initialRoomID: UUID? = nil) {
+    init(initialRoomID: UUID? = nil, kind: LayoutKind = .furniture) {
         _selectedRoomID = State(initialValue: initialRoomID)
+        _kind = State(initialValue: kind)
     }
+    /// Furniture, wall decor, or small decor.
+    @State private var kind: LayoutKind
     @State private var suggestions: [LayoutSuggestion] = []
     @State private var missing: [MissingPiece] = []
     @State private var isWorking = false
@@ -41,14 +44,22 @@ struct RecommendedLayoutsView: View {
                     message: "Draw your room first, then layouts for it will appear here.",
                     actionTitle: "Create a room"
                 ) { showRooms = true }
-            } else if let room, room.allItems.isEmpty {
+            } else if let room, kind != .furniture {
+                decorContent(room)
+            } else if let room, room.furnitureItems.isEmpty {
                 EmptyState(
                     systemImage: "sofa",
                     title: "No furniture in \(room.name)",
                     message: "Add the pieces you own to this room to see ways to arrange them.",
                     actionTitle: "Add furniture"
                 ) { showAddChoice = true }
-                .safeAreaInset(edge: .top) { roomPicker.padding(.horizontal, Theme.Space.md) }
+                .safeAreaInset(edge: .top) {
+                    VStack(alignment: .leading, spacing: Theme.Space.sm) {
+                        roomPicker
+                        kindPicker
+                    }
+                    .padding(.horizontal, Theme.Space.md)
+                }
             } else if let room {
                 content(room)
             }
@@ -90,6 +101,8 @@ struct RecommendedLayoutsView: View {
                     .disabled(isWorking)
                 }
 
+                kindPicker
+
                 if suggestions.isEmpty {
                     // A plain outline of the room while the engine works.
                     AppCard {
@@ -128,6 +141,29 @@ struct RecommendedLayoutsView: View {
 
                 if suggestions.indices.contains(page), !suggestions[page].placements.isEmpty {
                     VisualizeButton(room: room, placements: suggestions[page].placements, items: room.layoutItems)
+                }
+            }
+            .padding(Theme.Space.md)
+        }
+    }
+
+    /// Switches between furniture, wall decor, and small decor ideas.
+    private var kindPicker: some View {
+        Picker("Show layouts for", selection: $kind) {
+            ForEach(LayoutKind.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private func decorContent(_ room: Room) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Space.md) {
+                roomPicker
+                kindPicker
+                if kind == .wallDecor {
+                    WallDecorLayoutsView(room: room) { showAddItem = true }
+                } else {
+                    SmallDecorLayoutsView(room: room) { showAddItem = true }
                 }
             }
             .padding(Theme.Space.md)
@@ -236,7 +272,7 @@ struct RecommendedLayoutsView: View {
 
     /// Runs the engine off the main thread so the screen never freezes.
     private func generate() async {
-        guard let room, !room.allItems.isEmpty else {
+        guard let room, !room.furnitureItems.isEmpty else {
             suggestions = []
             return
         }

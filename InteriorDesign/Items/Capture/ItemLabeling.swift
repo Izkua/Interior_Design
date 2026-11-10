@@ -50,13 +50,29 @@ enum LabelMapper {
     /// Words that point to each type. Matched against whole words of the
     /// label, so "table" does not match "vegetable".
     static let keywords: [(ItemType, [String])] = [
+        // Decor first, so "table lamp" isn't read as a table and "wall
+        // clock" isn't read as a desk clock.
+        (.tableLamp, ["table lamp", "desk lamp", "bedside lamp"]),
+        (.wallClock, ["wall clock"]),
+        (.tableClock, ["clock", "alarm clock"]),
+        (.monitor, ["monitor", "computer monitor", "computer screen", "computer"]),
+        (.plant, ["plant", "houseplant", "potted plant", "flowerpot", "planter", "succulent", "cactus", "foliage"]),
+        (.vase, ["vase", "flowers", "bouquet"]),
+        (.books, ["book", "books", "novel"]),
+        (.candle, ["candle", "candles"]),
+        (.deskStorage, ["organizer", "desk organizer", "pen holder", "pencil holder", "storage box", "tray"]),
+        (.mirror, ["mirror"]),
+        (.poster, ["poster"]),
+        (.canvasArt, ["canvas"]),
+        (.framedArt, ["picture frame", "frame", "painting", "artwork", "art", "photograph"]),
+        (.wallShelf, ["floating shelf", "wall shelf"]),
         (.sofa, ["sofa", "couch", "loveseat", "sectional", "futon", "settee"]),
         (.bed, ["bed", "bunk bed", "mattress", "headboard", "bedroom"]),
         (.desk, ["desk", "writing desk", "office desk"]),
         (.tvStand, ["tv stand", "entertainment center", "media console", "television", "tv"]),
         (.dresser, ["dresser", "chest of drawers", "wardrobe", "armoire", "cabinet", "sideboard", "drawer"]),
         (.shelf, ["bookshelf", "bookcase", "shelf", "shelving", "shelves"]),
-        (.lamp, ["lamp", "floor lamp", "table lamp", "lampshade", "lamp shade"]),
+        (.lamp, ["lamp", "floor lamp", "lampshade", "lamp shade"]),
         (.rug, ["rug", "carpet", "area rug", "mat"]),
         (.chair, ["chair", "armchair", "stool", "office chair", "rocking chair", "recliner", "bench"]),
         (.table, ["table", "coffee table", "dining table", "side table", "nightstand", "end table"]),

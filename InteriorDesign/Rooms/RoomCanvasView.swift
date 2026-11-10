@@ -208,6 +208,8 @@ enum RoomPlanPainter {
 struct RoomCanvasView: View {
     let room: Room
     @Binding var selectedFeatureID: UUID?
+    /// The wall the person tapped, highlighted on the plan.
+    var selectedWall: Binding<Int?> = .constant(nil)
     let unit: UnitSystem
 
     @State private var draggingID: UUID?
@@ -217,6 +219,7 @@ struct RoomCanvasView: View {
         let corners = room.corners
         let features = room.features
         let selectedID = selectedFeatureID
+        let highlighted = selectedWall.wrappedValue
         let unit = self.unit
 
         GeometryReader { geo in
@@ -230,6 +233,12 @@ struct RoomCanvasView: View {
                     space: space,
                     unit: unit
                 )
+                if let wall = highlighted, corners.indices.contains(wall) {
+                    var line = Path()
+                    line.move(to: space.viewPoint(corners[wall]))
+                    line.addLine(to: space.viewPoint(corners[(wall + 1) % corners.count]))
+                    context.stroke(line, with: .color(Theme.accent), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                }
             }
             .contentShape(Rectangle())
             .gesture(dragGesture(space: space))
@@ -252,6 +261,7 @@ struct RoomCanvasView: View {
                         selectedFeatureID = nil
                         return
                     }
+                    selectedWall.wrappedValue = nil
                 }
                 guard
                     let id = draggingID,
@@ -268,10 +278,25 @@ struct RoomCanvasView: View {
                     wallLength: wallLength
                 )
             }
-            .onEnded { _ in
+            .onEnded { value in
+                if draggingID == nil, hypot(value.translation.width, value.translation.height) < 10 {
+                    // A tap away from doors and windows picks the nearest wall.
+                    let wall = wall(near: value.location, space: space)
+                    selectedWall.wrappedValue = (wall == selectedWall.wrappedValue) ? nil : wall
+                }
                 draggingID = nil
                 room.updatedAt = Date()
             }
+    }
+
+    /// The wall closest to a touch, if it's within reach of a fingertip.
+    private func wall(near location: CGPoint, space: CanvasSpace) -> Int? {
+        let corners = room.corners
+        guard corners.count >= 3 else { return nil }
+        let point = space.roomPoint(location)
+        let nearest = PlanGeometry.nearestWall(to: point, corners: corners)
+        let spot = space.viewPoint(PlanGeometry.point(onWall: nearest.wall, offset: nearest.offset, corners: corners))
+        return hypot(spot.x - location.x, spot.y - location.y) < 30 ? nearest.wall : nil
     }
 
     /// The feature closest to a touch, if one is within reach of a fingertip.

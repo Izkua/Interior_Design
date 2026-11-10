@@ -4,13 +4,17 @@ import Foundation
 enum FitResult: Equatable, Sendable {
     /// There is a spot that keeps every rule (doors, windows, walking path).
     case fits(ItemPlacement)
+    /// Wall or small decor with a free spot, like "Fits on the desk".
+    case fitsSpace(String)
     /// No size listed, so we can't say. Never shown as fitting.
     case unknownSize
     case doesNotFit(reason: String)
 
     var fits: Bool {
-        if case .fits = self { return true }
-        return false
+        switch self {
+        case .fits, .fitsSpace: return true
+        default: return false
+        }
     }
 }
 

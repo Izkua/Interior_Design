@@ -235,6 +235,7 @@ extension ItemType {
         case .lamp: return Color(light: 0xC09A2E, dark: 0xE6C25E)               // soft gold
         case .rug: return Color(light: 0xB0745F, dark: 0xD9A08B)                // terracotta
         case .other: return Color(light: 0x6C6B64, dark: 0x9D9B93)              // grey
+        default: return Color(light: 0x6C6B64, dark: 0x9D9B93)
         }
     }
 }

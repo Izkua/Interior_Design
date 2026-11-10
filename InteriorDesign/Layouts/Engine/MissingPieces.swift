@@ -12,7 +12,9 @@ struct MissingPiece: Sendable, Hashable {
 /// Simple rules for gaps, based on what is already in the room. Kept short
 /// on purpose: a suggestion, never a requirement.
 enum MissingPieces {
-    static func suggest(for items: [LayoutItem]) -> [MissingPiece] {
+    /// `decor` is the wall and small decor types the room already has
+    /// (hung or owned); leave it out to suggest furniture only.
+    static func suggest(for items: [LayoutItem], decor: Set<ItemType>? = nil) -> [MissingPiece] {
         func has(_ type: ItemType) -> Bool { items.contains { $0.type == type } }
         let hasCoffeeTable = items.contains { $0.isCoffeeTable }
         let seats = items.filter { $0.type.isSeating }.count
@@ -42,6 +44,18 @@ enum MissingPieces {
         }
         if has(.tvStand), !has(.sofa), seats == 0 {
             result.append(MissingPiece(type: .sofa, name: "Sofa", reason: "Seating that faces the TV."))
+        }
+        if let decor, !items.isEmpty {
+            let hasWallArt = decor.contains { $0.category == .wallDecor }
+            if !hasWallArt, let anchor = items.first(where: { [.sofa, .bed, .desk, .dresser].contains($0.type) }) {
+                result.append(MissingPiece(type: .framedArt, name: "Wall art", reason: "Something to look at above the \(anchor.type.displayName.lowercased())."))
+            }
+            if has(.desk), !decor.contains(.tableLamp) {
+                result.append(MissingPiece(type: .tableLamp, name: "Desk lamp", reason: "Light to work by."))
+            }
+            if !decor.contains(.plant), items.count >= 2 {
+                result.append(MissingPiece(type: .plant, name: "Plant", reason: "Brings a bit of life and color in."))
+            }
         }
         // One lamp suggestion is enough.
         var seen = Set<ItemType>()

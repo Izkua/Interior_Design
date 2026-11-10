@@ -13,6 +13,8 @@ struct CurrentItemsView: View {
     @Binding var showAddItem: Bool
     @State private var itemToEdit: Item?
     @State private var filter: RoomFilter = .all
+    /// Furniture, wall decor, or small decor. Nil shows every kind.
+    @State private var category: ItemCategory?
 
     /// Which items to show.
     enum RoomFilter: Hashable {
@@ -22,6 +24,12 @@ struct CurrentItemsView: View {
     }
 
     private var shownItems: [Item] {
+        let inRoom = roomItems
+        guard let category else { return inRoom }
+        return inRoom.filter { $0.type.category == category }
+    }
+
+    private var roomItems: [Item] {
         switch filter {
         case .all: return items
         case .unassigned: return items.filter(\.isUnassigned)
@@ -60,8 +68,10 @@ struct CurrentItemsView: View {
                         if rooms.count > 0 {
                             filterBar
                         }
+                        CategoryFilterRow(selection: $category)
+                            .padding(.top, Theme.Space.sm)
                         if shownItems.isEmpty {
-                            Text(filter == .unassigned ? "Every piece is in a room." : "Nothing in this room yet. Add a piece, or edit one and pick this room.")
+                            Text(emptyMessage)
                                 .font(Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -117,6 +127,13 @@ struct CurrentItemsView: View {
                 CaptureFlowView()
             }
         }
+    }
+
+    private var emptyMessage: String {
+        if let category, !roomItems.isEmpty {
+            return "No \(category.title.lowercased()) here yet. Tap + to add some."
+        }
+        return filter == .unassigned ? "Every piece is in a room." : "Nothing in this room yet. Add a piece, or edit one and pick this room."
     }
 
     /// "All", each room, and "Not assigned", as chips that scroll sideways.

@@ -430,7 +430,7 @@ enum LayoutEngine {
             if let seats = seatingCenter(placed) {
                 score += max(0, 4 - center.distance(to: seats) / 50)
             }
-        case .other:
+        default:
             break
         }
 

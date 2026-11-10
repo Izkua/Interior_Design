@@ -191,7 +191,7 @@ struct RoomFurnitureView: View {
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Space.sm + 4), GridItem(.flexible(), spacing: Theme.Space.sm + 4)],
                       spacing: Theme.Space.sm + 4) {
-                ForEach(room.allItems) { item in
+                ForEach(room.furnitureItems) { item in
                     Button {
                         editing = item
                     } label: {

@@ -6,9 +6,14 @@ struct WallDecorView: View {
     @Bindable var room: Room
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
-    @State private var wall = 0
+    @State private var wall: Int
     @State private var selectedID: UUID?
     @State private var showAdd = false
+
+    init(room: Room, initialWall: Int = 0) {
+        self.room = room
+        _wall = State(initialValue: initialWall)
+    }
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
     private var wallCount: Int { room.corners.count }
@@ -70,37 +75,48 @@ struct WallDecorView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        // Hung pieces show up in Current Items too.
+        .onAppear { room.linkDecorItems() }
         .onChange(of: wall) { _, _ in
             if let id = selectedID, room.wallDecor.first(where: { $0.id == id })?.wall != safeWall {
                 selectedID = nil
             }
         }
         .sheet(isPresented: $showAdd) {
-            AddDecorSheet { kind in
+            AddDecorSheet(owned: room.unhungWallDecor) { kind in
                 let piece = room.addDecor(kind, wall: w)
+                room.linkDecorItems()
+                selectedID = piece.id
+                showAdd = false
+            } onHang: { item in
+                let piece = room.hang(item, onWall: w)
                 selectedID = piece.id
                 showAdd = false
             }
-            .presentationDetents([.height(320)])
+            .presentationDetents(room.unhungWallDecor.isEmpty ? [.height(320)] : [.medium, .large])
         }
     }
 
     // MARK: Wall picker
 
     private var wallPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Space.sm) {
-                ForEach(0..<wallCount, id: \.self) { index in
-                    let count = room.decor(onWall: index).count
-                    Chip(
-                        title: PlanGeometry.wallName(index, cornerCount: wallCount) + (count > 0 ? " · \(count)" : ""),
-                        isSelected: index == safeWall
-                    ) {
-                        wall = index
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Space.sm) {
+                    ForEach(0..<wallCount, id: \.self) { index in
+                        Chip(
+                            title: PlanGeometry.wallName(index, cornerCount: wallCount),
+                            isSelected: index == safeWall
+                        ) {
+                            wall = index
+                        }
+                        .id(index)
                     }
                 }
+                .padding(.horizontal, Theme.Space.md)
             }
-            .padding(.horizontal, Theme.Space.md)
+            // Opened from "Edit wall": show that wall's chip.
+            .onAppear { proxy.scrollTo(safeWall, anchor: .center) }
         }
         .accessibilityLabel("Choose a wall")
     }
@@ -110,6 +126,19 @@ struct WallDecorView: View {
     private func wallCard(decor: [WallDecor]) -> some View {
         VStack(spacing: Theme.Space.md) {
             PrimaryButton(title: "Add decor", systemImage: "plus") { showAdd = true }
+
+            if !room.wallDecorForPlanning.isEmpty {
+                NavigationLink {
+                    RecommendedLayoutsView(initialRoomID: room.uuid, kind: .wallDecor)
+                } label: {
+                    Label("Decor layout ideas", systemImage: "sparkles")
+                        .font(Typography.headline)
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                }
+                .buttonStyle(PressableStyle())
+            }
 
             if decor.isEmpty {
                 Text("Add posters, frames, mirrors, or shelves, then drag them on the wall. They snap to eye level, the middle of the wall, the furniture below, and each other.")
@@ -278,6 +307,11 @@ private struct DecorEditorCard: View {
                             }
                         }
                     }
+                }
+
+                // Their own row, side by side and the same size, so they
+                // never wrap into each other.
+                HStack(spacing: Theme.Space.sm) {
                     if room.corners.count > 1 {
                         Menu {
                             ForEach(0..<room.corners.count, id: \.self) { index in
@@ -295,21 +329,24 @@ private struct DecorEditorCard: View {
                             Label("Move to wall", systemImage: "arrow.turn.up.right")
                                 .font(Typography.subheadline)
                                 .foregroundStyle(Theme.textPrimary)
-                                .padding(.horizontal, 14)
-                                .frame(minHeight: Theme.minTap)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, minHeight: Theme.minTap)
                                 .background(Theme.surfaceAlt, in: Capsule())
                         }
                     }
-                }
 
-                Button(role: .destructive) {
-                    confirmDelete = true
-                } label: {
-                    Label("Remove from wall", systemImage: "trash")
-                        .font(Typography.subheadline)
-                        .frame(minHeight: Theme.minTap)
+                    Button(role: .destructive) {
+                        confirmDelete = true
+                    } label: {
+                        Label("Remove", systemImage: "trash")
+                            .font(Typography.subheadline)
+                            .foregroundStyle(Theme.danger)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: Theme.minTap)
+                            .background(Theme.danger.opacity(0.1), in: Capsule())
+                    }
+                    .accessibilityLabel("Remove from wall")
                 }
-                .foregroundStyle(Theme.danger)
             }
         }
         .confirmationDialog("Remove \(piece.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -341,15 +378,41 @@ private struct DecorEditorCard: View {
 // MARK: - Adding a piece
 
 private struct AddDecorSheet: View {
+    /// Wall decor from Current Items that isn't hung yet.
+    var owned: [Item] = []
     let onPick: (DecorKind) -> Void
+    var onHang: (Item) -> Void = { _ in }
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: Theme.Space.sm)]
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: Theme.Space.md) {
             Text("Add to this wall")
                 .font(Typography.title)
                 .foregroundStyle(Theme.textPrimary)
+            if !owned.isEmpty {
+                SectionHeader(title: "Yours, not hung yet")
+                ForEach(owned) { item in
+                    Button { onHang(item) } label: {
+                        HStack(spacing: Theme.Space.sm + 4) {
+                            Image(systemName: item.type.symbol)
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 28)
+                            Text(item.name)
+                                .font(Typography.body)
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .frame(minHeight: Theme.minTap)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                SectionHeader(title: "Something new")
+            }
             LazyVGrid(columns: columns, spacing: Theme.Space.sm) {
                 ForEach(DecorKind.allCases) { kind in
                     Button {
@@ -369,10 +432,11 @@ private struct AddDecorSheet: View {
                     .buttonStyle(PressableStyle())
                 }
             }
-            Text("It starts at a typical size. Change it after.")
+            Text("It starts at a typical size. Change it after. It's added to Current Items too.")
                 .font(Typography.caption)
                 .foregroundStyle(Theme.textSecondary)
         }
         .padding(Theme.Space.lg)
+        }
     }
 }

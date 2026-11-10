@@ -5,6 +5,8 @@ import SwiftData
 /// room yet) and put it in this room too. It keeps its other rooms.
 struct AddExistingFurnitureSheet: View {
     let room: Room
+    /// Only offer this kind of item. Nil offers everything.
+    var category: ItemCategory? = .furniture
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -18,7 +20,7 @@ struct AddExistingFurnitureSheet: View {
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
     private var candidates: [Item] {
-        let all = RoomFurniture.addable(allItems, to: room)
+        let all = RoomFurniture.addable(allItems, to: room).filter { category == nil || $0.type.category == category }
         let text = search.trimmingCharacters(in: .whitespaces)
         return text.isEmpty ? all : all.filter { $0.name.localizedCaseInsensitiveContains(text) || $0.type.displayName.localizedCaseInsensitiveContains(text) }
     }
@@ -30,7 +32,7 @@ struct AddExistingFurnitureSheet: View {
                     EmptyState(
                         systemImage: "checkmark.circle",
                         title: "Everything's already here",
-                        message: "All your furniture is already in \(room.name). Add a new piece instead.",
+                        message: "All your \((category?.title ?? "items").lowercased()) is already in \(room.name). Add a new piece instead.",
                         actionTitle: "Done"
                     ) { dismiss() }
                 } else {

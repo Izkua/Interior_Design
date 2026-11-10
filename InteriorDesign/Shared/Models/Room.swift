@@ -148,6 +148,9 @@ final class Room {
     /// Posters, frames, shelves and so on, placed on the walls. Rooms saved
     /// before this existed load with none.
     var wallDecor: [WallDecor] = []
+    /// Where small decor (plants, lamps, books) sits on the furniture.
+    /// Rooms saved before this existed load with none.
+    var surfaceDecor: [SurfaceSpot] = []
     /// Floor to ceiling, in cm, for the wall front views.
     var ceilingHeightCm: Double = WallDecorGeometry.defaultCeilingCm
     var createdAt: Date

@@ -60,6 +60,8 @@ struct FitBadge: View {
         switch fit {
         case .fits:
             label("Fits your room", "checkmark.circle.fill", Theme.accent)
+        case .fitsSpace(let text):
+            label(text, "checkmark.circle.fill", Theme.accent)
         case .doesNotFit:
             label("Doesn't fit", "xmark.circle", Theme.danger)
         case .unknownSize:

@@ -26,6 +26,8 @@ struct RoomBuilderView: View {
     /// "Room" (walls, doors, windows), "Furniture" (where things stand), or
     /// "Walls" (posters, frames, and shelves on each wall).
     @State private var page: RoomPage = .room
+    /// The wall the Walls page opens on.
+    @State private var wallsPageWall = 0
 
     enum RoomPage: String, CaseIterable, Identifiable {
         case room = "Room"
@@ -59,7 +61,7 @@ struct RoomBuilderView: View {
             switch page {
             case .room: roomPage
             case .furniture: RoomFurnitureView(room: room)
-            case .walls: WallDecorView(room: room)
+            case .walls: WallDecorView(room: room, initialWall: wallsPageWall)
             }
         }
         .background(Theme.background.ignoresSafeArea())
@@ -146,13 +148,24 @@ struct RoomBuilderView: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                 } else {
-                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, unit: unit)
+                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, selectedWall: $selectedWall, unit: unit)
                         .frame(height: 300)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                 }
             }
             .padding(.horizontal, Theme.Space.md)
             .padding(.top, Theme.Space.sm)
+
+            if let wall = selectedWall, room.corners.indices.contains(wall) {
+                // Right under the plan, so it's seen as soon as a wall is tapped.
+                PrimaryButton(title: editWallTitle(wall), systemImage: "square.and.pencil", style: .tinted) {
+                    wallsPageWall = wall
+                    page = .walls
+                }
+                .padding(.horizontal, Theme.Space.md)
+                .padding(.top, Theme.Space.sm)
+                .accessibilityHint("Opens this wall's front view to hang and arrange decor")
+            }
 
             ScrollView {
                 VStack(spacing: Theme.Space.md) {
@@ -168,6 +181,12 @@ struct RoomBuilderView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+    }
+
+    /// "Edit top wall", or "Edit Wall 3" for odd-shaped rooms.
+    private func editWallTitle(_ wall: Int) -> String {
+        let name = PlanGeometry.wallName(wall, cornerCount: room.corners.count)
+        return "Edit " + (name.hasPrefix("Wall") ? name : name.lowercased())
     }
 
     // MARK: Basic or advanced

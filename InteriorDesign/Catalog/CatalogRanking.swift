@@ -26,6 +26,8 @@ struct ShoppingPreferences: Sendable, Equatable {
     var materials: Set<String> = []
     var colors: Set<String> = []
     var minRating: Double = 0
+    /// The room's colors and mood. When set, products that suit it rank higher.
+    var vibe: RoomVibe?
 }
 
 enum CatalogRanking {
@@ -33,6 +35,9 @@ enum CatalogRanking {
     static func filter(_ products: [CatalogProduct], query: CatalogQuery, budget: ShoppingBudget) -> [CatalogProduct] {
         products.filter { p in
             if let type = query.type, p.type != type { return false }
+            // Products of unknown type stay: the search words already asked
+            // for this kind of thing.
+            if let category = query.category, let type = p.type, type.category != category { return false }
             if !query.text.isEmpty {
                 let haystack = "\(p.name) \(p.retailer) \(p.materials.joined(separator: " "))".lowercased()
                 let words = query.text.lowercased().split(separator: " ")
@@ -67,13 +72,18 @@ enum CatalogRanking {
     static func score(_ p: CatalogProduct, preferences: ShoppingPreferences, budget: ShoppingBudget, fit: FitResult?) -> Double {
         var score = 0.0
         switch fit {
-        case .fits: score += 5
+        case .fits, .fitsSpace: score += 5
         case .unknownSize, .none: score += 1
         case .doesNotFit: score -= 5
         }
         if matches(p.styles, preferences.styles) { score += 2 }
         if matches(p.materials, preferences.materials) { score += 1.5 }
         if matches(p.colors, preferences.colors) { score += 1 }
+        if let vibe = preferences.vibe {
+            // Colors that suit the room count about as much as a liked style.
+            score += 2 * vibe.match(colors: p.colors)
+            if matches(p.styles, vibe.suitedStyles) { score += 0.5 }
+        }
         if let rating = p.rating {
             // A 4.5 with 500 reviews beats a 5.0 with 2.
             let confidence = min(Double(p.reviewCount ?? 0) / 50, 1)

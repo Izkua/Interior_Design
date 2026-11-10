@@ -83,9 +83,11 @@ struct WallDecor: Codable, Hashable, Identifiable {
     var heightCm: Double
     /// How far it sticks out from the wall. Matters for shelves.
     var depthCm: Double
+    /// The piece in Current Items, if it's one the person owns.
+    var itemID: UUID?
 
     init(kind: DecorKind, name: String? = nil, wall: Int, centerX: Double, centerY: Double? = nil,
-         widthCm: Double? = nil, heightCm: Double? = nil, depthCm: Double? = nil) {
+         widthCm: Double? = nil, heightCm: Double? = nil, depthCm: Double? = nil, itemID: UUID? = nil) {
         let size = kind.defaultSize
         self.kind = kind
         self.name = name ?? kind.title
@@ -95,12 +97,13 @@ struct WallDecor: Codable, Hashable, Identifiable {
         self.widthCm = widthCm ?? size.width
         self.heightCm = heightCm ?? size.height
         self.depthCm = depthCm ?? size.depth
+        self.itemID = itemID
     }
 
     // Decoded by hand so fields added later fall back to defaults instead
     // of failing to load rooms saved by an older build.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, name, wall, centerX, centerY, widthCm, heightCm, depthCm
+        case id, kind, name, wall, centerX, centerY, widthCm, heightCm, depthCm, itemID
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +117,7 @@ struct WallDecor: Codable, Hashable, Identifiable {
         widthCm = try c.decodeIfPresent(Double.self, forKey: .widthCm) ?? kind.defaultSize.width
         heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm) ?? kind.defaultSize.height
         depthCm = try c.decodeIfPresent(Double.self, forKey: .depthCm) ?? kind.defaultSize.depth
+        itemID = try c.decodeIfPresent(UUID.self, forKey: .itemID)
     }
 
     var rect: WallRect {

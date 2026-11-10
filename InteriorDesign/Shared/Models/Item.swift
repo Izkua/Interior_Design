@@ -13,6 +13,22 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
     case lamp
     case rug
     case other
+    // Wall decor: hangs on a wall (see `DecorKind`).
+    case poster
+    case framedArt
+    case canvasArt
+    case mirror
+    case wallShelf
+    case wallClock
+    // Small decor: sits on a desk, table, dresser, or shelf.
+    case plant
+    case vase
+    case books
+    case tableLamp
+    case monitor
+    case deskStorage
+    case tableClock
+    case candle
 
     var id: String { rawValue }
 
@@ -29,6 +45,20 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .lamp: return "Lamp"
         case .rug: return "Rug"
         case .other: return "Other"
+        case .poster: return "Poster"
+        case .framedArt: return "Framed art"
+        case .canvasArt: return "Canvas art"
+        case .mirror: return "Mirror"
+        case .wallShelf: return "Wall shelf"
+        case .wallClock: return "Wall clock"
+        case .plant: return "Plant"
+        case .vase: return "Vase"
+        case .books: return "Books"
+        case .tableLamp: return "Table lamp"
+        case .monitor: return "Monitor"
+        case .deskStorage: return "Desk storage"
+        case .tableClock: return "Desk clock"
+        case .candle: return "Candle"
         }
     }
 
@@ -45,6 +75,20 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .lamp: return "lamp.floor"
         case .rug: return "rectangle.dashed"
         case .other: return "cube"
+        case .poster: return "doc.richtext"
+        case .framedArt: return "photo"
+        case .canvasArt: return "paintpalette"
+        case .mirror: return "oval.portrait"
+        case .wallShelf: return "books.vertical"
+        case .wallClock: return "clock"
+        case .plant: return "leaf"
+        case .vase: return "camera.macro"
+        case .books: return "book.closed"
+        case .tableLamp: return "lamp.table"
+        case .monitor: return "display"
+        case .deskStorage: return "tray.2"
+        case .tableClock: return "alarm"
+        case .candle: return "flame"
         }
     }
 
@@ -62,6 +106,20 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .lamp: return (30, 30, 150)
         case .rug: return (200, 140, 1)
         case .other: return (60, 60, 60)
+        case .poster: return (50, 1, 70)
+        case .framedArt: return (40, 3, 50)
+        case .canvasArt: return (80, 4, 60)
+        case .mirror: return (60, 3, 90)
+        case .wallShelf: return (80, 20, 4)
+        case .wallClock: return (35, 5, 35)
+        case .plant: return (25, 25, 40)
+        case .vase: return (15, 15, 30)
+        case .books: return (25, 18, 22)
+        case .tableLamp: return (25, 25, 50)
+        case .monitor: return (62, 20, 45)
+        case .deskStorage: return (30, 20, 15)
+        case .tableClock: return (15, 8, 15)
+        case .candle: return (10, 10, 12)
         }
     }
 }
@@ -88,6 +146,9 @@ final class Item {
     @Attribute(.externalStorage) var cutoutData: Data? = nil
     /// Fingerprint of the photo the cutout was made from.
     var cutoutSource: String? = nil
+    /// The piece's main color as "#RRGGBB|<photo size>", worked out on the
+    /// phone from its photo and kept so it isn't redone every time.
+    var colorKey: String? = nil
     var source: ItemSource
     /// True for things that should not move, like a built-in wardrobe.
     var isFixed: Bool
