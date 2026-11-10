@@ -1,6 +1,7 @@
 // POST /functions/v1/generate-3d
-// Body: { productId: string }  (a Channel3 product id)
+// Body: { productId: string, cachedOnly?: boolean }  (a Channel3 product id)
 // Returns { url, generated } : a link to the product's 3D model (GLB).
+// With cachedOnly, nothing new is made: { url: null } if none exists yet.
 //
 // Or, for the person's own furniture:
 // Body: { photo: base64 PNG/JPEG }  (the piece cut out of their photo)
@@ -22,7 +23,7 @@ import { bestImage, BUCKET, MODEL_COST_CENTS, makeModel, modelPath } from "../_s
 Deno.serve(safely(async (req) => {
   if (req.method !== "POST") return error("Use POST.", 405);
 
-  let body: { productId?: unknown; photo?: unknown };
+  let body: { productId?: unknown; photo?: unknown; cachedOnly?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -48,6 +49,7 @@ Deno.serve(safely(async (req) => {
     .eq("product_id", productID).maybeSingle();
   if (lookupError) throw lookupError;
   if (saved) return json({ url: publicURL(), generated: false });
+  if (body.cachedOnly === true) return json({ url: null, generated: false });
 
   // Making a new one costs money: every safety check first.
   const allowed = await checkPaidRequest(req, "model3d", MODEL_COST_CENTS);

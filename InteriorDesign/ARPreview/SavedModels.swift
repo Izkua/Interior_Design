@@ -41,6 +41,38 @@ final class SavedModels {
         save()
     }
 
+    /// The saved model of a product, if this phone has one.
+    func model(_ productID: String) -> Data? {
+        modelFile(productID).flatMap { try? Data(contentsOf: $0) }
+    }
+
+    /// Saves a product's model and puts it at the top of the list.
+    func save(model data: Data, for product: CatalogProduct) {
+        guard let folder, let file = modelFile(product.id) else { return }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? data.write(to: file, options: .atomic)
+        remember(product)
+    }
+
+    /// The cutout the person chose for a product (PNG), if any.
+    func cutout(_ productID: String) -> Data? {
+        cutoutFile(productID).flatMap { try? Data(contentsOf: $0) }
+    }
+
+    func setCutout(_ png: Data?, for productID: String) {
+        guard let folder, let file = cutoutFile(productID) else { return }
+        if let png {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? png.write(to: file, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    private func cutoutFile(_ productID: String) -> URL? {
+        modelFile(productID)?.deletingPathExtension().appendingPathExtension("cutout.png")
+    }
+
     /// Where a product's GLB file is kept.
     func modelFile(_ productID: String) -> URL? {
         guard productID.range(of: "^[A-Za-z0-9_-]{1,64}$", options: .regularExpression) != nil, let folder else { return nil }

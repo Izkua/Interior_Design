@@ -394,7 +394,7 @@ final class ARPlaceController: NSObject {
         let cached = ProductModelService.cacheFile(productID).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         if !cached { showHint("Making an AI 3D model of this product…") }
         do {
-            let data = try await ProductModelService.model(productID: productID)
+            guard let data = try await ProductModelService.model(productID: productID) else { clearHint(); return }
             guard await showAIModel(data, for: id, isNew: !cached) else { return }
             if let product = (pending.first { $0.id == id } ?? placed[id]?.piece)?.product {
                 SavedModels.shared.remember(product)

@@ -23,9 +23,17 @@ enum ProductModelService {
         }
     }
 
+    /// A product's model that was already made (by anyone): from the
+    /// phone, else the shared copy on the backend. Free; never makes a new
+    /// one. Nil if there isn't one yet.
+    static func savedModel(productID: String) async -> Data? {
+        try? await model(productID: productID, cachedOnly: true)
+    }
+
     /// The GLB file for a product: from the phone if it was fetched
-    /// before, else from the backend (made there if it's the first time).
-    static func model(productID: String) async throws -> Data {
+    /// before, else from the backend. With `cachedOnly`, nothing new is
+    /// made (nil if none exists yet).
+    static func model(productID: String, cachedOnly: Bool = false) async throws -> Data? {
         guard BackendConfig.productModelsEnabled else { throw Failure.notAvailable }
         guard let file = await cacheFile(productID) else { throw Failure.failed }
         if let saved = try? Data(contentsOf: file) { return saved }
@@ -37,7 +45,8 @@ enum ProductModelService {
         request.setValue("Bearer \(await AuthStore.shared.validAccessToken() ?? BackendConfig.publishableKey)", forHTTPHeaderField: "Authorization")
         request.setValue(DeviceID.current, forHTTPHeaderField: "x-device-id")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(["productId": productID])
+        struct Body: Encodable { var productId: String; var cachedOnly: Bool }
+        request.httpBody = try JSONEncoder().encode(Body(productId: productID, cachedOnly: cachedOnly))
 
         let data: Data, response: URLResponse
         do {
@@ -49,7 +58,10 @@ enum ProductModelService {
         let reply = try? JSONDecoder().decode(Reply.self, from: data)
         switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
         case 200:
-            guard let url = reply?.url else { throw Failure.failed }
+            guard let url = reply?.url else {
+                if cachedOnly { return nil }
+                throw Failure.failed
+            }
             guard let (glb, fileResponse) = try? await URLSession.shared.data(from: url),
                   (fileResponse as? HTTPURLResponse)?.statusCode == 200 else { throw Failure.failed }
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -26,6 +26,12 @@ struct ProductDetailView: View {
     @AppStorage("catalog.previewRoomID") private var previewRoomID = ""
     @State private var showRooms = false
     @State private var showAR = false
+    /// The product photo, for the cutout and AI model.
+    @State private var productPhoto: UIImage?
+    /// The cutout the person chose, and the product's 3D model, both kept
+    /// on the phone.
+    @State private var cutoutData: Data?
+    @State private var modelData: Data?
 
     /// The room the fit check and preview use: the one picked here last,
     /// else the Catalog's room, else the most recently edited.
@@ -65,6 +71,14 @@ struct ProductDetailView: View {
 
     private var isSaved: Bool { !saved.isEmpty }
 
+    /// The product for the room view, with its model and chosen cutout.
+    private var arPiece: ARPiece? {
+        guard var piece = ARPiece(product: product) else { return nil }
+        piece.modelData = modelData
+        piece.cutoutData = cutoutData
+        return piece
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
@@ -98,45 +112,6 @@ struct ProductDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
 
-                if rooms.isEmpty {
-                    Button {
-                        showRooms = true
-                    } label: {
-                        Label("Add a room to preview", systemImage: "square.dashed")
-                            .font(Typography.headline)
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                    }
-                    .buttonStyle(PressableStyle())
-                } else if let room = activeRoom, case .fits(let spot) = fitResult, let item = product.asLayoutItem(id: previewID) {
-                    Button {
-                        Task { await openPreview(room: room, item: item, spot: spot) }
-                    } label: {
-                        Label(isPreparingPreview ? "Getting the room ready…" : "Preview in \(room.name)", systemImage: "square.split.2x2")
-                            .font(Typography.headline)
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                    }
-                    .buttonStyle(PressableStyle())
-                    .disabled(isPreparingPreview)
-                }
-
-                if ARPlaceView.isAvailable, product.hasDimensions {
-                    Button {
-                        showAR = true
-                    } label: {
-                        Label("See it in my room", systemImage: "arkit")
-                            .font(Typography.headline)
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityHint("Shows a true-size stand-in of this product in your room, through the camera")
-                }
-
                 if product.url != nil {
                     PrimaryButton(title: isOpening ? "Opening…" : "View at \(product.retailer)", systemImage: "arrow.up.right.square") {
                         Task { await openRetailer() }
@@ -156,6 +131,43 @@ struct ProductDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
 
+                if rooms.isEmpty {
+                    Button {
+                        showRooms = true
+                    } label: {
+                        Label("Add a room to preview", systemImage: "square.dashed")
+                            .font(Typography.headline)
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    }
+                    .buttonStyle(PressableStyle())
+                } else if let room = activeRoom, case .fits(let spot) = fitResult, let item = product.asLayoutItem(id: previewID) {
+                    Button {
+                        Task { await openPreview(room: room, item: item, spot: spot) }
+                    } label: {
+                        Label(isPreparingPreview ? "Getting the room ready…" : "Preview in 2D \(room.name)", systemImage: "square.split.2x2")
+                            .font(Typography.headline)
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .disabled(isPreparingPreview)
+                }
+
+                if product.hasDimensions {
+                    Model3DSection(
+                        name: product.type?.displayName ?? "piece",
+                        photo: productPhoto,
+                        cutoutData: $cutoutData,
+                        modelData: $modelData,
+                        onNewModel: { SavedModels.shared.save(model: $0, for: product) }
+                    ) {
+                        showAR = true
+                    }
+                }
+
                 AffiliateDisclosure()
             }
             .padding(Theme.Space.md)
@@ -166,7 +178,7 @@ struct ProductDetailView: View {
         // on this (already pushed) screen kept rebuilding the preview every
         // frame and froze the app.
         .fullScreenCover(isPresented: $showAR) {
-            if let piece = ARPiece(product: product) { ARPlaceView(start: [piece]) }
+            if let piece = arPiece { ARPlaceView(start: [piece]) }
         }
         .sheet(isPresented: $showRooms) {
             NavigationStack { RoomListView() }
@@ -185,6 +197,23 @@ struct ProductDetailView: View {
                 // Dragging furniture shouldn't close the sheet.
                 .interactiveDismissDisabled()
             }
+        }
+        .task {
+            // The saved cutout and model on this phone, else a model someone
+            // already made (free). Never makes a new one here.
+            cutoutData = SavedModels.shared.cutout(product.id)
+            modelData = SavedModels.shared.model(product.id)
+            if let url = product.imageURL, let (data, _) = try? await URLSession.shared.data(from: url) {
+                productPhoto = UIImage(data: data)
+            }
+            if modelData == nil, !product.isSample, let shared = await ProductModelService.savedModel(productID: product.id) {
+                modelData = shared
+                SavedModels.shared.save(model: shared, for: product)
+            }
+        }
+        .onChange(of: cutoutData) { _, png in SavedModels.shared.setCutout(png, for: product.id) }
+        .onChange(of: modelData) { _, data in
+            if data == nil { SavedModels.shared.remove(product.id) }
         }
         .task(id: activeRoom?.uuid) {
             // Check the fit in the background when it isn't known yet: opened

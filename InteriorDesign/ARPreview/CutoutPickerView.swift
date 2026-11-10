@@ -107,6 +107,7 @@ struct CutoutPickerView: View {
 
                 HStack(spacing: Theme.Space.sm) {
                     Button("Use whole photo") { finish(whole: true) }
+                        .disabled(isLoading)
                         .font(Typography.subheadline)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
@@ -149,8 +150,8 @@ struct CutoutPickerView: View {
     }
 
     private func finish(whole: Bool) {
-        guard let objects else { return }
-        let image = whole ? objects.photo : objects.cutout(chosen)
+        // The whole photo works even if no objects were found.
+        let image = whole ? (objects?.photo ?? PhotoCutout.upright(photo)) : objects?.cutout(chosen)
         guard let image, let data = UIImage(cgImage: image).pngData() else { return }
         onDone(data)
         dismiss()

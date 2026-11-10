@@ -57,7 +57,6 @@ extension ARPiece {
             name: product.name, type: type, widthCm: w, depthCm: d, heightCm: h,
             colors: PhotoColors.colors(named: product.colors, type: type),
             imageURL: product.imageURL,
-            productID: product.isSample ? nil : product.id,
             product: product
         )
     }

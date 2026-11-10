@@ -80,6 +80,7 @@
 		B340C1C5212BCBD01944910D /* RoomLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEC93BB1B68A13DA9CCC329 /* RoomLayout.swift */; };
 		B355F52C42F6F8E6633DB495 /* GeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BA9941B6464C6AEAE4435A /* GeometryTests.swift */; };
 		B579498AAEB1D844DE93664D /* PhotoColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC74EFB223C5681EFB5C957F /* PhotoColors.swift */; };
+		B80454BDCF3BE60EDFCDDC0C /* Model3DSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9A1607F9F8FB2ACBCC23FA /* Model3DSection.swift */; };
 		B89B49369431754089563306 /* CustomRoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E67A671B613581C9CF68A5 /* CustomRoomTests.swift */; };
 		BB6EF790A5F341E8318E63C0 /* BackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4499AEBE2C238FC1D15BF261 /* BackendConfig.swift */; };
 		BD48E173E02B138AF8B25841 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA33AF838FF1A63F098C4DF4 /* Keychain.swift */; };
@@ -107,6 +108,7 @@
 		EA10369BD235A94E54909E9E /* FitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09882C5C6806278EE37A4F19 /* FitCheck.swift */; };
 		ED1FC7D7417BCE54D3ABC173 /* ScanService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D269FF2BB50593EF02B7B32 /* ScanService.swift */; };
 		EEFA5F806B2BE54FD233A4C1 /* WallDecor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FFFFBE2DADEAF7795E7501 /* WallDecor.swift */; };
+		F08292681AC3750E01447CD3 /* ModelPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7B5D9A57F54FCF977B1B3B /* ModelPreview.swift */; };
 		F314DA495D855B40801909F0 /* ARMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2637B0A02D17D02AEA77C75A /* ARMeasureView.swift */; };
 		F64846C470D10492495AD3A5 /* PolygonGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200B084F7378853C897BCA3C /* PolygonGeometry.swift */; };
 		F72B84845E64D4BCC4704AAA /* MultiRoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77706A64E0EF6F19D997B85 /* MultiRoomTests.swift */; };
@@ -201,6 +203,7 @@
 		99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizeTests.swift; sourceTree = "<group>"; };
 		9A1B71704FC92D14F24CD40B /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		9D807D8F67CF2A4D08104186 /* ARRoomTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARRoomTraceTests.swift; sourceTree = "<group>"; };
+		9F9A1607F9F8FB2ACBCC23FA /* Model3DSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model3DSection.swift; sourceTree = "<group>"; };
 		A495AEA4C32A00097F84C75A /* ProductDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDetailView.swift; sourceTree = "<group>"; };
 		A52E5FCE2EDC950E2EF0C608 /* PreviewScreenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewScreenTests.swift; sourceTree = "<group>"; };
 		ABE9CD3CDFB7E2C5235C648C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -233,6 +236,7 @@
 		E32DC643635CF1DC06937AFA /* CatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTests.swift; sourceTree = "<group>"; };
 		E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceMeasureView.swift; sourceTree = "<group>"; };
 		EC74EFB223C5681EFB5C957F /* PhotoColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoColors.swift; sourceTree = "<group>"; };
+		EE7B5D9A57F54FCF977B1B3B /* ModelPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPreview.swift; sourceTree = "<group>"; };
 		EE9FE372325ABF7FD5D22874 /* AddExistingFurnitureSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddExistingFurnitureSheet.swift; sourceTree = "<group>"; };
 		EF8E5FA065BAC046DB6BC309 /* CaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTests.swift; sourceTree = "<group>"; };
 		F02F215C29A0864F42E4B4A1 /* LengthField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LengthField.swift; sourceTree = "<group>"; };
@@ -506,7 +510,9 @@
 				858C1A81485D550A7407EDC2 /* CutoutPickerView.swift */,
 				406AE5B7D2904FC983F494CA /* FurnitureShape.swift */,
 				4F5897580ACA9E598CC3F404 /* GLBModel.swift */,
+				9F9A1607F9F8FB2ACBCC23FA /* Model3DSection.swift */,
 				DCC91E4789DBB0879E7601B1 /* ModelFit.swift */,
+				EE7B5D9A57F54FCF977B1B3B /* ModelPreview.swift */,
 				B0065B6733A822C38C5DD100 /* ObjectScanView.swift */,
 				EC74EFB223C5681EFB5C957F /* PhotoColors.swift */,
 				84D0454308283CBB9F08D7C8 /* PhotoCutout.swift */,
@@ -690,7 +696,9 @@
 				FABC3C924A63FEDCEF286BBA /* LayoutRules.swift in Sources */,
 				6938745EFD854CB2C274C206 /* LengthField.swift in Sources */,
 				61E6918E06E236CAF18015F3 /* MissingPieces.swift in Sources */,
+				B80454BDCF3BE60EDFCDDC0C /* Model3DSection.swift in Sources */,
 				4285D8A4A8CA63418F788660 /* ModelFit.swift in Sources */,
+				F08292681AC3750E01447CD3 /* ModelPreview.swift in Sources */,
 				E7886C461C76EF0D57ADE626 /* ObjectScanView.swift in Sources */,
 				A971F876AA156603A994E81A /* OnboardingView.swift in Sources */,
 				B579498AAEB1D844DE93664D /* PhotoColors.swift in Sources */,

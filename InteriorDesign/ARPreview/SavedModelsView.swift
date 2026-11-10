@@ -22,7 +22,10 @@ struct SavedModelsView: View {
                     Section {
                         ForEach(models.entries) { entry in
                             Button {
-                                showing = ARPiece(product: entry.product)
+                                var piece = ARPiece(product: entry.product)
+                                piece?.modelData = models.model(entry.id)
+                                piece?.cutoutData = models.cutout(entry.id)
+                                showing = piece
                             } label: {
                                 row(entry.product)
                             }

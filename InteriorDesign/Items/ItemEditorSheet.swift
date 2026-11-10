@@ -21,12 +21,6 @@ struct ItemEditorSheet: View {
     @State private var photoSelection: PhotosPickerItem?
     @State private var confirmDelete = false
     @State private var showAR = false
-    @State private var showScan = false
-    @State private var showImport = false
-    @State private var showCutout = false
-    @State private var isMakingModel = false
-    /// A short note under the 3D model card, like "Sizes updated from the scan."
-    @State private var modelNote: String?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -45,22 +39,18 @@ struct ItemEditorSheet: View {
                     photoCard
                     typeCard
                     sizeCard
-                    modelCard
-                    if ARPlaceView.isAvailable {
-                        Button {
-                            hideKeyboard()
-                            showAR = true
-                        } label: {
-                            Label("See it in my room", systemImage: "arkit")
-                                .font(Typography.headline)
-                                .foregroundStyle(Theme.accent)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-                        }
-                        .buttonStyle(PressableStyle())
-                        .accessibilityHint("Shows this piece at its true size in your room, through the camera")
-                    }
                     detailsCard
+                    Model3DSection(
+                        name: draft.type.displayName,
+                        photo: draft.photoData.flatMap(UIImage.init(data:)),
+                        cutoutData: $draft.cutoutData,
+                        modelData: $draft.modelData,
+                        allowScan: true,
+                        onScanned: useScan
+                    ) {
+                        hideKeyboard()
+                        showAR = true
+                    }
                     if item != nil {
                         Button(role: .destructive) {
                             confirmDelete = true
@@ -99,14 +89,6 @@ struct ItemEditorSheet: View {
             } message: {
                 Text("This can't be undone.")
             }
-            .fullScreenCover(isPresented: $showScan) {
-                #if !targetEnvironment(simulator)
-                ObjectScanView { data in useScan(data) }
-                #endif
-            }
-            .fileImporter(isPresented: $showImport, allowedContentTypes: [.usdz]) { result in
-                importModel(result)
-            }
             .fullScreenCover(isPresented: $showAR) {
                 ARPlaceView(start: [arPiece])
             }
@@ -133,126 +115,14 @@ struct ItemEditorSheet: View {
 
     // MARK: 3D model
 
-    private var modelCard: some View {
-        AppCard {
-            VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
-                HStack {
-                    SectionHeader(title: "3D model")
-                    if draft.modelData != nil { Tag(text: "Added") }
-                }
-                Text(draft.modelData != nil
-                     ? "\"See it in my room\" shows this 3D model."
-                     : draft.photoData != nil
-                        ? "Make an AI 3D model from the photo, using the cutout you choose. Your photo is sent to Stability AI to make it."
-                        : (ObjectScan.isSupported
-                           ? "Scan the piece in 3D by walking around it, or add a photo to make an AI 3D model."
-                           : "Add a photo to make an AI 3D model, or import a 3D model (.usdz) made on another phone or a Mac."))
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let modelNote {
-                    Text(modelNote)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textPrimary)
-                }
-                if let photo = draft.photoData.flatMap(UIImage.init(data:)) {
-                    HStack(spacing: Theme.Space.sm) {
-                        modelButton(draft.cutoutData == nil ? "Choose cutout" : "Change cutout", systemImage: "scissors") {
-                            showCutout = true
-                        }
-                        modelButton(isMakingModel ? "Making…" : "Make AI 3D", systemImage: "wand.and.stars") {
-                            Task { await makeAIModel(from: photo) }
-                        }
-                        .disabled(isMakingModel)
-                    }
-                    .sheet(isPresented: $showCutout) {
-                        CutoutPickerView(photo: photo, itemName: draft.type.displayName) { png in
-                            draft.cutoutData = png
-                            modelNote = "Cutout chosen. Save to keep it."
-                        }
-                    }
-                }
-                HStack(spacing: Theme.Space.sm) {
-                    if ObjectScan.isSupported {
-                        modelButton(draft.modelData == nil ? "Scan in 3D" : "Scan again", systemImage: "cube.transparent") {
-                            hideKeyboard()
-                            showScan = true
-                        }
-                    }
-                    modelButton(ObjectScan.isSupported ? "Import" : "Import 3D model", systemImage: "square.and.arrow.down") {
-                        showImport = true
-                    }
-                }
-                if draft.modelData != nil {
-                    Button("Remove 3D model", role: .destructive) {
-                        draft.modelData = nil
-                        modelNote = nil
-                    }
-                    .font(Typography.subheadline)
-                    .frame(minHeight: Theme.minTap)
-                }
-            }
-        }
-    }
-
-    private func modelButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(Typography.subheadline)
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity, minHeight: Theme.minTap)
-                .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-        }
-        .buttonStyle(PressableStyle())
-    }
-
-    /// Sends the chosen cutout (or the photo, cut out automatically) to be
-    /// made into an AI 3D model.
-    private func makeAIModel(from photo: UIImage) async {
-        isMakingModel = true
-        defer { isMakingModel = false }
-        modelNote = "Making the 3D model… this takes about a minute."
-        var png = draft.cutoutData
-        if png == nil, let auto = await PhotoCutout.cutout(from: photo) {
-            png = UIImage(cgImage: auto).pngData()
-        }
-        guard let png = png ?? photo.jpegData(compressionQuality: 0.9) else {
-            modelNote = "The photo couldn't be read."
-            return
-        }
-        do {
-            draft.modelData = try await ProductModelService.model(fromPhoto: png)
-            modelNote = "AI-generated 3D model added. It's approximate. Save to keep it."
-        } catch {
-            modelNote = error.localizedDescription
-        }
-    }
-
     /// A LiDAR scan is true to size, so it also measures the piece.
     private func useScan(_ data: Data) {
-        draft.modelData = data
-        guard let size = ARPlaceController.modelSize(data) else {
-            modelNote = "3D model added."
-            return
-        }
+        guard let size = ARPlaceController.modelSize(data) else { return }
         let target = simd_float3(Float(draft.widthCm), Float(draft.heightCm), Float(draft.depthCm)) / 100
         let turned = ModelFit.fit(extents: size, target: target).turned
         draft.widthCm = Double((turned ? size.z : size.x) * 100).rounded()
         draft.depthCm = Double((turned ? size.x : size.z) * 100).rounded()
         draft.heightCm = Double(size.y * 100).rounded()
-        modelNote = "3D model added. The sizes above were measured by the scan; Save to keep them."
-    }
-
-    private func importModel(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
-        let opened = url.startAccessingSecurityScopedResource()
-        defer { if opened { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url), ARPlaceController.modelSize(data) != nil else {
-            modelNote = "That file couldn't be opened as a 3D model."
-            return
-        }
-        draft.modelData = data
-        modelNote = "3D model added. It's sized to fit the sizes above."
     }
 
     // MARK: Photo
