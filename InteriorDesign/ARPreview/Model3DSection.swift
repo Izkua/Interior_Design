@@ -10,7 +10,7 @@ struct Model3DSection: View {
     /// "Desk", or the product's name, for the cutout picker.
     let name: String
     /// The photo to cut the piece out of (nil if there's none yet).
-    let photo: UIImage?
+    let photoData: Data?
     @Binding var cutoutData: Data?
     @Binding var modelData: Data?
     /// LiDAR "Scan in 3D", for your own items on Pro iPhones.
@@ -29,6 +29,7 @@ struct Model3DSection: View {
     @State private var showImport = false
     @State private var showScan = false
     @State private var isMaking = false
+    @State private var isUpdating = false
     @State private var note: String?
 
     var body: some View {
@@ -57,7 +58,7 @@ struct Model3DSection: View {
                     }
                 }
 
-                if photo != nil {
+                if photoData != nil {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Current cutout")
                             .font(Typography.caption)
@@ -76,11 +77,17 @@ struct Model3DSection: View {
                         .frame(height: 150)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                     }
-                    button("Change cutout", systemImage: "scissors") { showPicker = true }
+                    HStack(alignment: .top, spacing: Theme.Space.sm) {
+                        button("Change cutout", systemImage: "scissors") { showPicker = true }
+                        button(isUpdating ? "Updating…" : "Update cutout to current picture", systemImage: "arrow.triangle.2.circlepath", lines: 2) {
+                            Task { await updateToCurrentPicture() }
+                        }
+                        .disabled(isUpdating)
+                    }
                 }
 
                 HStack(alignment: .top, spacing: Theme.Space.sm) {
-                    if photo != nil {
+                    if photoData != nil {
                         VStack(spacing: 4) {
                             button(isMaking ? "Making…" : "Make AI 3D", systemImage: "wand.and.stars") {
                                 Task { await makeModel() }
@@ -120,7 +127,13 @@ struct Model3DSection: View {
                 }
             }
         }
-        .task(id: photo) { await findAutoCutout() }
+        .task(id: photoData) { await findAutoCutout() }
+        .onChange(of: photoData) { _, _ in
+            // A new photo doesn't change the cutout: keep the one shown.
+            if cutoutData == nil, let shown = autoCutout, let png = UIImage(cgImage: shown).pngData() {
+                cutoutData = png
+            }
+        }
         .fullScreenCover(isPresented: $showPicker) {
             if let photo {
                 CutoutPickerView(photo: photo, itemName: name) { png in
@@ -146,10 +159,27 @@ struct Model3DSection: View {
         cutoutData.flatMap { UIImage(data: $0)?.cgImage } ?? autoCutout
     }
 
+    private var photo: UIImage? { photoData.flatMap(UIImage.init(data:)) }
+
+    /// The iPhone's own cutout, shown until the person picks one.
     private func findAutoCutout() async {
-        guard cutoutData == nil, let photo else { return }
+        guard cutoutData == nil, autoCutout == nil, let photo else { return }
         // If nothing stands out, fall back to the whole photo.
         autoCutout = await PhotoCutout.cutout(from: photo) ?? PhotoCutout.upright(photo)
+    }
+
+    /// Redoes the automatic background removal on the current photo.
+    private func updateToCurrentPicture() async {
+        guard let photo else { return }
+        isUpdating = true
+        defer { isUpdating = false }
+        if let cut = await PhotoCutout.cutout(from: photo), let png = UIImage(cgImage: cut).pngData() {
+            cutoutData = png
+            note = "Cutout updated from the current picture."
+        } else if let whole = PhotoCutout.upright(photo), let png = UIImage(cgImage: whole).pngData() {
+            cutoutData = png
+            note = "Nothing stood out in this picture, so the whole picture is used. Use Change cutout and Paint to pick the piece."
+        }
     }
 
     private func makeModel() async {
@@ -180,12 +210,14 @@ struct Model3DSection: View {
         note = "3D model added. It's sized to fit the sizes above."
     }
 
-    private func button(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    private func button(_ title: String, systemImage: String, lines: Int = 1, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(Typography.subheadline)
                 .foregroundStyle(Theme.accent)
-                .lineLimit(1)
+                .multilineTextAlignment(.center)
+                .lineLimit(lines)
+                .padding(.horizontal, 6)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTap)
                 .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))

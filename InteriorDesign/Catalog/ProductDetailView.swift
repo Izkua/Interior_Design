@@ -27,7 +27,7 @@ struct ProductDetailView: View {
     @State private var showRooms = false
     @State private var showAR = false
     /// The product photo, for the cutout and AI model.
-    @State private var productPhoto: UIImage?
+    @State private var productPhoto: Data?
     /// The cutout the person chose, and the product's 3D model, both kept
     /// on the phone.
     @State private var cutoutData: Data?
@@ -159,7 +159,7 @@ struct ProductDetailView: View {
                 if product.hasDimensions {
                     Model3DSection(
                         name: product.type?.displayName ?? "piece",
-                        photo: productPhoto,
+                        photoData: productPhoto,
                         cutoutData: $cutoutData,
                         modelData: $modelData,
                         onNewModel: { SavedModels.shared.save(model: $0, for: product) },
@@ -205,7 +205,7 @@ struct ProductDetailView: View {
             cutoutData = SavedModels.shared.cutout(product.id)
             modelData = SavedModels.shared.model(product.id)
             if let url = product.imageURL, let (data, _) = try? await URLSession.shared.data(from: url) {
-                productPhoto = UIImage(data: data)
+                productPhoto = data
             }
             if modelData == nil, !product.isSample, let shared = await ProductModelService.savedModel(productID: product.id) {
                 modelData = shared

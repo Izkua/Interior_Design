@@ -50,7 +50,7 @@ struct ItemEditorSheet: View {
                     detailsCard
                     Model3DSection(
                         name: draft.type.displayName,
-                        photo: draft.photoData.flatMap(UIImage.init(data:)),
+                        photoData: draft.photoData,
                         cutoutData: $draft.cutoutData,
                         modelData: $draft.modelData,
                         allowScan: true,
@@ -178,7 +178,7 @@ struct ItemEditorSheet: View {
                     }
                     if draft.photoData != nil {
                         Button("Remove photo", role: .destructive) {
-                            draft.photoData = nil; draft.cutoutData = nil
+                            draft.photoData = nil
                             photoSelection = nil
                         }
                         .font(Typography.subheadline)
@@ -194,7 +194,7 @@ struct ItemEditorSheet: View {
         guard let selection else { return }
         Task {
             guard let data = try? await selection.loadTransferable(type: Data.self) else { return }
-            draft.photoData = PhotoResizer.jpeg(from: data); draft.cutoutData = nil
+            draft.photoData = PhotoResizer.jpeg(from: data)
         }
     }
 
