@@ -134,4 +134,45 @@ final class ARPreviewTests: XCTestCase {
         let tall = ModelFit.fit(extents: [2, 1.7, 0.9], target: [2, 0.85, 0.9])
         XCTAssertEqual(tall.scale, 0.5, accuracy: 0.001)
     }
+
+    // MARK: Straightening AI models
+
+    /// Points on the surface of a box (a bench seat on legs is close enough).
+    private func boxPoints(_ size: SIMD3<Float>) -> [SIMD3<Float>] {
+        var points: [SIMD3<Float>] = []
+        for i in 0...10 { for j in 0...10 { for k in 0...10 where [i, j, k].contains(0) || [i, j, k].contains(10) {
+            points.append((SIMD3(Float(i), Float(j), Float(k)) / 10 - 0.5) * size)
+        } } }
+        return points
+    }
+
+    func testStraightensALeaningSlantedBench() {
+        let bench = boxPoints([1.2, 0.5, 0.4])
+        // As if photographed from above and to the side: tipped 20°, turned 25°.
+        let tipped = simd_quatf(angle: 25 * .pi / 180, axis: [0, 1, 0]) * simd_quatf(angle: 20 * .pi / 180, axis: [1, 0, 0])
+        let fixed = ModelFit.straightening(bench.map { tipped.act($0) })
+        let straight = bench.map { fixed.act(tipped.act($0)) }
+        let lo = straight.reduce(SIMD3<Float>(repeating: .infinity)) { simd_min($0, $1) }
+        let hi = straight.reduce(SIMD3<Float>(repeating: -.infinity)) { simd_max($0, $1) }
+        let size = hi - lo
+        XCTAssertEqual(size.y, 0.5, accuracy: 0.02, "standing up straight again")
+        XCTAssertEqual(max(size.x, size.z), 1.2, accuracy: 0.02, "squared up")
+        XCTAssertEqual(min(size.x, size.z), 0.4, accuracy: 0.02, "squared up")
+    }
+
+    func testLeavesAStraightTallPieceStanding() {
+        let shelf = boxPoints([0.8, 1.8, 0.3])
+        let fixed = ModelFit.straightening(shelf)
+        let up = fixed.act([0, 1, 0])
+        XCTAssertGreaterThan(up.y, 0.99, "never laid down")
+    }
+
+    func testStretchFillsTheCatalogSizeExactly() {
+        // Long side along x, but the catalog's long side is the depth.
+        let fit = ModelFit.stretch(extents: [1.0, 0.4, 0.5], target: [0.43, 0.51, 1.24])
+        XCTAssertTrue(fit.turned)
+        XCTAssertEqual(fit.scale.x * 1.0, 1.24, accuracy: 0.001)
+        XCTAssertEqual(fit.scale.y * 0.4, 0.51, accuracy: 0.001)
+        XCTAssertEqual(fit.scale.z * 0.5, 0.43, accuracy: 0.001)
+    }
 }

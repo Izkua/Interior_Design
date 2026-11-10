@@ -306,7 +306,7 @@ final class ARPlaceController: NSObject {
         let piece = pending.removeFirst()
         let entity = Self.makeEntity(for: piece)
         if let model = models[piece.id] {
-            Self.addModel(model, of: piece, to: entity)
+            Self.addModel(model, of: piece, to: entity, stretch: aiModelIDs.contains(piece.id))
         } else if let cutout = cutouts[piece.id] {
             Self.addPhoto(cutout, of: piece, to: entity)
         }
@@ -387,7 +387,12 @@ final class ARPlaceController: NSObject {
         if !cached { showHint("Making an AI 3D model of this product…") }
         do {
             let data = try await ProductModelService.model(productID: productID)
-            let parsed = try await Task.detached { try GLBModel(data: data) }.value
+            let parsed = try await Task.detached {
+                var model = try GLBModel(data: data)
+                // Stand it up straight and square it before sizing it.
+                model.rotate(by: ModelFit.straightening(model.allPositions))
+                return model
+            }.value
             let model = try parsed.entity()
             guard models[id] == nil else { return }
             aiModelIDs.insert(id)
@@ -424,7 +429,7 @@ final class ARPlaceController: NSObject {
         hasPhotos = true
         if let entry = placed[id] {
             entry.entity.findEntity(named: "photo")?.removeFromParent()
-            Self.addModel(model, of: entry.piece, to: entry.entity)
+            Self.addModel(model, of: entry.piece, to: entry.entity, stretch: aiModelIDs.contains(id))
             applyLook()
         }
     }
@@ -571,18 +576,23 @@ final class ARPlaceController: NSObject {
 
     /// Adds the piece's 3D model, standing on the floor in the middle of
     /// its footprint and sized to fit its saved size.
-    static func addModel(_ model: Entity, of piece: ARPiece, to root: Entity) {
+    static func addModel(_ model: Entity, of piece: ARPiece, to root: Entity, stretch: Bool = false) {
         let copy = model.clone(recursive: true)
         let bounds = copy.visualBounds(relativeTo: nil)
-        let fit = ModelFit.fit(
-            extents: bounds.extents,
-            target: [Float(piece.widthCm / 100), Float(piece.heightCm / 100), Float(piece.depthCm / 100)]
-        )
+        let target: simd_float3 = [Float(piece.widthCm / 100), Float(piece.heightCm / 100), Float(piece.depthCm / 100)]
+        let fit: (scale: simd_float3, turned: Bool)
+        if stretch {
+            // AI models: fill the catalog's measured size exactly.
+            fit = ModelFit.stretch(extents: bounds.extents, target: target)
+        } else {
+            let even = ModelFit.fit(extents: bounds.extents, target: target)
+            fit = (simd_float3(repeating: even.scale), even.turned)
+        }
         // Bottom-middle of the model at the origin.
         copy.position -= [bounds.center.x, bounds.min.y, bounds.center.z]
         let sized = Entity()
         sized.addChild(copy)
-        sized.scale = simd_float3(repeating: fit.scale)
+        sized.scale = fit.scale
         if fit.turned { sized.orientation = simd_quatf(angle: .pi / 2, axis: [0, 1, 0]) }
         let holder = Entity()
         holder.name = "photo"

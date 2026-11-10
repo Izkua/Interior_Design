@@ -167,6 +167,17 @@ struct GLBModel {
         guard !meshes.isEmpty else { throw ReadError.badData }
     }
 
+    /// Every corner point of every mesh.
+    var allPositions: [SIMD3<Float>] { meshes.flatMap(\.positions) }
+
+    /// Turns the whole model (points and their facing directions).
+    mutating func rotate(by rotation: simd_quatf) {
+        for i in meshes.indices {
+            meshes[i].positions = meshes[i].positions.map { rotation.act($0) }
+            meshes[i].normals = meshes[i].normals?.map { rotation.act($0) }
+        }
+    }
+
     // MARK: Showing it
 
     /// A RealityKit entity for the model.
