@@ -83,6 +83,7 @@
 		B80454BDCF3BE60EDFCDDC0C /* Model3DSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9A1607F9F8FB2ACBCC23FA /* Model3DSection.swift */; };
 		B89B49369431754089563306 /* CustomRoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E67A671B613581C9CF68A5 /* CustomRoomTests.swift */; };
 		BB6EF790A5F341E8318E63C0 /* BackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4499AEBE2C238FC1D15BF261 /* BackendConfig.swift */; };
+		BBCEBCE07A11087CB4A8312F /* CutoutMaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECAFDE25CA18AEEDB915C2E /* CutoutMaskTests.swift */; };
 		BD48E173E02B138AF8B25841 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA33AF838FF1A63F098C4DF4 /* Keychain.swift */; };
 		BEA6D7179D9D5E5F53E3B8DC /* RoomFurnitureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D607C3EE83BFE3E4990F10 /* RoomFurnitureTests.swift */; };
 		BECB0B41F57D998B1394294C /* WallDecorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B23673CCF33402B014AC19 /* WallDecorTests.swift */; };
@@ -175,6 +176,7 @@
 		4EE83705FF638048D9584F71 /* InteriorDesign.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InteriorDesign.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F5897580ACA9E598CC3F404 /* GLBModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLBModel.swift; sourceTree = "<group>"; };
 		587C972790966FDA8D6D5D92 /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
+		5ECAFDE25CA18AEEDB915C2E /* CutoutMaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutoutMaskTests.swift; sourceTree = "<group>"; };
 		5F3F0BBF3378088389148C78 /* AdvancedRoomCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedRoomCanvas.swift; sourceTree = "<group>"; };
 		5F76AE3FA4056636F0C37E01 /* PlanGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGeometry.swift; sourceTree = "<group>"; };
 		6127D54EF5D63F97BA29DDD4 /* RecommendedLayoutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedLayoutsView.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 				EF8E5FA065BAC046DB6BC309 /* CaptureTests.swift */,
 				E32DC643635CF1DC06937AFA /* CatalogTests.swift */,
 				C4E67A671B613581C9CF68A5 /* CustomRoomTests.swift */,
+				5ECAFDE25CA18AEEDB915C2E /* CutoutMaskTests.swift */,
 				02BA9941B6464C6AEAE4435A /* GeometryTests.swift */,
 				C1984AC1F6F2897FB71E168A /* GLBModelTests.swift */,
 				06AA4CB2D6C8472438E23C0E /* ItemTests.swift */,
@@ -631,6 +634,7 @@
 				3CA343A3794EAF6529DD0737 /* CaptureTests.swift in Sources */,
 				3D1F5875730DDDF970C681ED /* CatalogTests.swift in Sources */,
 				B89B49369431754089563306 /* CustomRoomTests.swift in Sources */,
+				BBCEBCE07A11087CB4A8312F /* CutoutMaskTests.swift in Sources */,
 				76B2BFA7C461E013B4C5BB91 /* GLBModelTests.swift in Sources */,
 				B355F52C42F6F8E6633DB495 /* GeometryTests.swift in Sources */,
 				6081B5DC45293B247F8AAF9A /* ItemTests.swift in Sources */,

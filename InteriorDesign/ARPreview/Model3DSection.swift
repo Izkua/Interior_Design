@@ -77,10 +77,11 @@ struct Model3DSection: View {
                                 Task { await makeModel() }
                             }
                             .disabled(isMaking || currentCutout == nil)
-                            Text("Uses 1 of your limited AI 3D credits.")
+                            Text("Uses a limited AI credit")
                                 .font(.caption2)
                                 .foregroundStyle(Theme.textSecondary)
-                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
                     }
                     button("Import 3D model", systemImage: "square.and.arrow.down") { showImport = true }
