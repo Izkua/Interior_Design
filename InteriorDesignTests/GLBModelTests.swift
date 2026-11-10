@@ -62,3 +62,14 @@ final class GLBModelTests: XCTestCase {
         XCTAssertEqual(entity.children.count, 1)
     }
 }
+
+final class AIModelDetectionTests: XCTestCase {
+    func testTellsAIModelsFromScans() {
+        var piece = ARPiece(name: "Desk", type: .desk, widthCm: 80, depthCm: 60, heightCm: 75, colors: .fallback(for: .desk))
+        XCTAssertFalse(piece.hasAIModel)
+        piece.modelData = Data("glTF....".utf8)
+        XCTAssertTrue(piece.hasAIModel)
+        piece.modelData = Data("PK\u{3}\u{4}usdz".utf8)
+        XCTAssertFalse(piece.hasAIModel, "a USDZ scan keeps its real shape")
+    }
+}

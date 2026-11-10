@@ -81,8 +81,11 @@ final class Item {
     var depthCm: Double
     var heightCm: Double
     @Attribute(.externalStorage) var photoData: Data?
-    /// A 3D model of the piece (USDZ), from a LiDAR scan or imported.
+    /// A 3D model of the piece: USDZ from a LiDAR scan or import, or GLB
+    /// made by AI from its photo.
     @Attribute(.externalStorage) var modelData: Data? = nil
+    /// The piece cut out of its photo (PNG), as the person chose it.
+    @Attribute(.externalStorage) var cutoutData: Data? = nil
     var source: ItemSource
     /// True for things that should not move, like a built-in wardrobe.
     var isFixed: Bool

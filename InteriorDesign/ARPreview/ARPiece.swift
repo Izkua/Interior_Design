@@ -19,6 +19,8 @@ struct ARPiece: Identifiable, Equatable {
     var imageURL: URL?
     /// A real 3D model of it (USDZ), if the person scanned or imported one.
     var modelData: Data?
+    /// The piece cut out of its photo (PNG), as the person chose it.
+    var cutoutData: Data?
     /// The catalog product's id, so an AI 3D model can be made of it.
     var productID: String?
     /// The catalog product itself, for the saved 3D models list.
@@ -40,7 +42,8 @@ extension ARPiece {
                 ?? .fallback(for: item.type),
             isEstimated: item.isEstimated,
             photoData: item.photoData,
-            modelData: item.modelData
+            modelData: item.modelData,
+            cutoutData: item.cutoutData
         )
     }
 
@@ -58,6 +61,9 @@ extension ARPiece {
             product: product
         )
     }
+
+    /// True when the 3D model is an AI-made GLB (not a scan or import).
+    var hasAIModel: Bool { modelData.map(GLBModel.isGLB) ?? false }
 
     /// The piece's photo: the saved one, or the product photo downloaded.
     /// Nil if there's none or it can't be fetched.

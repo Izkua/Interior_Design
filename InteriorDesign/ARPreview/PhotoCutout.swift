@@ -30,7 +30,7 @@ enum PhotoCutout {
 
     /// The photo drawn the right way up (camera photos often store a turn
     /// in their orientation instead), no bigger than 1024 pixels.
-    private static func upright(_ image: UIImage, maxSide: CGFloat = 1024) -> CGImage? {
+    static func upright(_ image: UIImage, maxSide: CGFloat = 1024) -> CGImage? {
         let longest = max(image.size.width, image.size.height)
         guard longest > 0 else { return nil }
         let scale = min(1, maxSide / longest)

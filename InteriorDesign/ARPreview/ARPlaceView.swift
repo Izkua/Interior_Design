@@ -263,13 +263,21 @@ final class ARPlaceController: NSObject {
         pending.append(contentsOf: pieces)
         if wasEmpty, let first = pending.first { showFootprint(for: first) }
         for piece in pieces where cutouts[piece.id] == nil && models[piece.id] == nil {
-            if let data = piece.modelData, let model = Self.loadModel(data) {
+            if let data = piece.modelData, piece.hasAIModel {
+                // An AI model made from the person's own photo.
+                Task { [weak self] in await self?.showAIModel(data, for: piece.id, isNew: false) }
+            } else if let data = piece.modelData, let model = Self.loadModel(data) {
                 // A real 3D model beats a cut-out photo.
                 addModel(model, to: piece.id)
                 continue
             }
             if let productID = piece.productID {
                 Task { [weak self] in await self?.makeAIModel(productID, for: piece.id) }
+            }
+            if let png = piece.cutoutData, let chosen = UIImage(data: png)?.cgImage {
+                // The person picked the cutout themselves.
+                addCutout(chosen, to: piece.id)
+                continue
             }
             Task { [weak self] in
                 guard let photo = await piece.loadPhoto() else { return }
@@ -387,6 +395,22 @@ final class ARPlaceController: NSObject {
         if !cached { showHint("Making an AI 3D model of this product…") }
         do {
             let data = try await ProductModelService.model(productID: productID)
+            guard await showAIModel(data, for: id, isNew: !cached) else { return }
+            if let product = (pending.first { $0.id == id } ?? placed[id]?.piece)?.product {
+                SavedModels.shared.remember(product)
+            }
+        } catch let failure as ProductModelService.Failure {
+            if failure != .notAvailable { showHint(failure.localizedDescription + " Showing the photo instead.", seconds: 4) } else { clearHint() }
+        } catch {
+            showHint("The 3D model couldn't be opened. Showing the photo instead.", seconds: 4)
+        }
+    }
+
+    /// Opens an AI-made GLB, stands it up straight, and shows it. False if
+    /// it couldn't be opened (the photo stays).
+    @discardableResult
+    private func showAIModel(_ data: Data, for id: UUID, isNew: Bool) async -> Bool {
+        do {
             let parsed = try await Task.detached {
                 var model = try GLBModel(data: data)
                 // Stand it up straight and square it before sizing it.
@@ -394,18 +418,15 @@ final class ARPlaceController: NSObject {
                 return model
             }.value
             let model = try parsed.entity()
-            guard models[id] == nil else { return }
+            guard models[id] == nil else { return false }
             aiModelIDs.insert(id)
-            if let product = (pending.first { $0.id == id } ?? placed[id]?.piece)?.product {
-                SavedModels.shared.remember(product)
-            }
             addModel(model, to: id)
-            if !cached { showHint("3D model ready. It's AI-generated, so details may differ.", seconds: 4) }
+            if isNew { showHint("3D model ready. It's AI-generated, so details may differ.", seconds: 4) }
             if selected?.id == id { selected = placed[id]?.piece }
-        } catch let failure as ProductModelService.Failure {
-            if failure != .notAvailable { showHint(failure.localizedDescription + " Showing the photo instead.", seconds: 4) } else { clearHint() }
+            return true
         } catch {
             showHint("The 3D model couldn't be opened. Showing the photo instead.", seconds: 4)
+            return false
         }
     }
 

@@ -13,8 +13,10 @@ struct ItemDraft {
     var notes = ""
     var isFixed = false
     var photoData: Data?
-    /// A 3D model (USDZ), if one was scanned or imported.
+    /// A 3D model (USDZ or AI-made GLB), if one was added.
     var modelData: Data?
+    /// The chosen cutout of the photo (PNG); nil means pick automatically.
+    var cutoutData: Data?
     /// The rooms it goes in; the first is its main room.
     var rooms: [Room] = []
     /// "Not sure yet": a candidate for every room.
@@ -42,6 +44,7 @@ struct ItemDraft {
         isFixed = item.isFixed
         photoData = item.photoData
         modelData = item.modelData
+        cutoutData = item.cutoutData
         rooms = item.assignedRooms
         anyRoom = item.anyRoom
     }
@@ -90,6 +93,7 @@ struct ItemDraft {
         item.isFixed = isFixed
         item.photoData = photoData
         item.modelData = modelData
+        item.cutoutData = cutoutData
         item.setRooms(rooms, anyRoom: anyRoom)
         item.isEstimated = false
     }

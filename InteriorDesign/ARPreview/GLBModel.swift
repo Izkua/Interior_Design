@@ -33,6 +33,9 @@ struct GLBModel {
 
     enum ReadError: Error { case notGLB, badJSON, badData }
 
+    /// True if the data starts like a GLB file ("glTF").
+    static func isGLB(_ data: Data) -> Bool { data.prefix(4) == Data("glTF".utf8) }
+
     init(data: Data) throws {
         let bytes = [UInt8](data)
         func u32(_ at: Int) -> UInt32 {

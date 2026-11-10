@@ -2,6 +2,11 @@
 // Body: { productId: string }  (a Channel3 product id)
 // Returns { url, generated } : a link to the product's 3D model (GLB).
 //
+// Or, for the person's own furniture:
+// Body: { photo: base64 PNG/JPEG }  (the piece cut out of their photo)
+// Returns { glb: base64 } . Their photo and model are not stored or
+// shared here; the app keeps the model on the phone.
+//
 // Each product's model is made once and saved; after that anyone gets the
 // saved copy for free, with no sign-in needed. Making a new one goes
 // through the usual paid checks: sign-in, the model_3d kill switch,
@@ -17,12 +22,15 @@ import { bestImage, BUCKET, MODEL_COST_CENTS, makeModel, modelPath } from "../_s
 Deno.serve(safely(async (req) => {
   if (req.method !== "POST") return error("Use POST.", 405);
 
-  let productID: string;
+  let body: { productId?: unknown; photo?: unknown };
   try {
-    productID = String((await req.json()).productId ?? "");
+    body = await req.json();
   } catch {
     return error("The request body must be JSON.", 400);
   }
+  if (typeof body.photo === "string") return await fromOwnPhoto(req, body.photo);
+
+  const productID = String(body.productId ?? "");
   const path = modelPath(productID);
   if (!path) return error("Missing or bad product id.", 400);
 
@@ -90,3 +98,41 @@ Deno.serve(safely(async (req) => {
 
   return json({ url: publicURL(), generated: true });
 }));
+
+/** A model of the person's own piece, from their photo. Always a new,
+ * paid model, so every safety check applies. */
+async function fromOwnPhoto(req: Request, base64: string): Promise<Response> {
+  const allowed = await checkPaidRequest(req, "model3d", MODEL_COST_CENTS);
+  if (allowed instanceof Response) return allowed;
+  const stabilityKey = Deno.env.get("STABILITY_API_KEY");
+  if (!stabilityKey) return error("3D models aren't set up yet.", 501);
+
+  if (base64.length > 8_000_000) return error("The photo is too large.", 413);
+  let photo: Uint8Array;
+  try {
+    photo = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  } catch {
+    return error("The photo couldn't be read.", 400);
+  }
+  const mime = photo[0] === 0x89 ? "image/png" : photo[0] === 0xff ? "image/jpeg" : null;
+  if (!mime) return error("Send a PNG or JPEG photo.", 400);
+
+  if (!(await reserveSpend("model3d", MODEL_COST_CENTS))) {
+    return error("This month's budget for 3D models is used up. It resets on the 1st.", 503);
+  }
+  let glb: Uint8Array;
+  try {
+    glb = await Promise.race([
+      makeModel(stabilityKey, photo, mime),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 60_000)),
+    ]);
+  } catch (e) {
+    console.error("3D model failed", e instanceof Error ? e.message : e);
+    if (e instanceof Error && e.message === "timeout") return error("The 3D model took too long.", 504);
+    return error("The 3D model couldn't be made.", 502);
+  }
+  await recordUse(allowed.id, "model3d", MODEL_COST_CENTS);
+  let binary = "";
+  for (let i = 0; i < glb.length; i += 0x8000) binary += String.fromCharCode(...glb.subarray(i, i + 0x8000));
+  return json({ glb: btoa(binary) });
+}

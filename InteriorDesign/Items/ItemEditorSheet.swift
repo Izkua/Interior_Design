@@ -23,6 +23,8 @@ struct ItemEditorSheet: View {
     @State private var showAR = false
     @State private var showScan = false
     @State private var showImport = false
+    @State private var showCutout = false
+    @State private var isMakingModel = false
     /// A short note under the 3D model card, like "Sizes updated from the scan."
     @State private var modelNote: String?
 
@@ -124,7 +126,8 @@ struct ItemEditorSheet: View {
                 ?? .fallback(for: draft.type),
             isEstimated: item?.isEstimated ?? false,
             photoData: draft.photoData,
-            modelData: draft.modelData
+            modelData: draft.modelData,
+            cutoutData: draft.cutoutData
         )
     }
 
@@ -137,11 +140,13 @@ struct ItemEditorSheet: View {
                     SectionHeader(title: "3D model")
                     if draft.modelData != nil { Tag(text: "Added") }
                 }
-                Text(draft.modelData == nil
-                     ? (ObjectScan.isSupported
-                        ? "Scan the piece in 3D by walking around it. \"See it in my room\" then shows the real thing."
-                        : "3D scanning needs an iPhone with LiDAR (Pro models). You can still add a 3D model (.usdz) made on another phone or a Mac.")
-                     : "\"See it in my room\" shows this 3D model.")
+                Text(draft.modelData != nil
+                     ? "\"See it in my room\" shows this 3D model."
+                     : draft.photoData != nil
+                        ? "Make an AI 3D model from the photo, using the cutout you choose. Your photo is sent to Stability AI to make it."
+                        : (ObjectScan.isSupported
+                           ? "Scan the piece in 3D by walking around it, or add a photo to make an AI 3D model."
+                           : "Add a photo to make an AI 3D model, or import a 3D model (.usdz) made on another phone or a Mac."))
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -149,6 +154,23 @@ struct ItemEditorSheet: View {
                     Text(modelNote)
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textPrimary)
+                }
+                if let photo = draft.photoData.flatMap(UIImage.init(data:)) {
+                    HStack(spacing: Theme.Space.sm) {
+                        modelButton(draft.cutoutData == nil ? "Choose cutout" : "Change cutout", systemImage: "scissors") {
+                            showCutout = true
+                        }
+                        modelButton(isMakingModel ? "Making…" : "Make AI 3D", systemImage: "wand.and.stars") {
+                            Task { await makeAIModel(from: photo) }
+                        }
+                        .disabled(isMakingModel)
+                    }
+                    .sheet(isPresented: $showCutout) {
+                        CutoutPickerView(photo: photo, itemName: draft.type.displayName) { png in
+                            draft.cutoutData = png
+                            modelNote = "Cutout chosen. Save to keep it."
+                        }
+                    }
                 }
                 HStack(spacing: Theme.Space.sm) {
                     if ObjectScan.isSupported {
@@ -182,6 +204,28 @@ struct ItemEditorSheet: View {
                 .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
         }
         .buttonStyle(PressableStyle())
+    }
+
+    /// Sends the chosen cutout (or the photo, cut out automatically) to be
+    /// made into an AI 3D model.
+    private func makeAIModel(from photo: UIImage) async {
+        isMakingModel = true
+        defer { isMakingModel = false }
+        modelNote = "Making the 3D model… this takes about a minute."
+        var png = draft.cutoutData
+        if png == nil, let auto = await PhotoCutout.cutout(from: photo) {
+            png = UIImage(cgImage: auto).pngData()
+        }
+        guard let png = png ?? photo.jpegData(compressionQuality: 0.9) else {
+            modelNote = "The photo couldn't be read."
+            return
+        }
+        do {
+            draft.modelData = try await ProductModelService.model(fromPhoto: png)
+            modelNote = "AI-generated 3D model added. It's approximate. Save to keep it."
+        } catch {
+            modelNote = error.localizedDescription
+        }
     }
 
     /// A LiDAR scan is true to size, so it also measures the piece.
@@ -242,7 +286,7 @@ struct ItemEditorSheet: View {
                     }
                     if draft.photoData != nil {
                         Button("Remove photo", role: .destructive) {
-                            draft.photoData = nil
+                            draft.photoData = nil; draft.cutoutData = nil
                             photoSelection = nil
                         }
                         .font(Typography.subheadline)
@@ -258,7 +302,7 @@ struct ItemEditorSheet: View {
         guard let selection else { return }
         Task {
             guard let data = try? await selection.loadTransferable(type: Data.self) else { return }
-            draft.photoData = PhotoResizer.jpeg(from: data)
+            draft.photoData = PhotoResizer.jpeg(from: data); draft.cutoutData = nil
         }
     }
 
