@@ -162,7 +162,8 @@ struct ProductDetailView: View {
                         photo: productPhoto,
                         cutoutData: $cutoutData,
                         modelData: $modelData,
-                        onNewModel: { SavedModels.shared.save(model: $0, for: product) }
+                        onNewModel: { SavedModels.shared.save(model: $0, for: product) },
+                        isPaused: showAR
                     ) {
                         showAR = true
                     }

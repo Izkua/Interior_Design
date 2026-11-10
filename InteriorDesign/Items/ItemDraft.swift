@@ -1,9 +1,9 @@
 import Foundation
 
-/// The add/edit item form's values, kept apart from the saved `Item` so
-/// Cancel can throw them away. The rules live here, not in the view, so
+/// The add/edit item form's values, kept apart from the saved `Item` so a
+/// new item can be cancelled. The rules live here, not in the view, so
 /// they can be unit-tested.
-struct ItemDraft {
+struct ItemDraft: Equatable {
     var type: ItemType
     var name: String
     /// Sizes in centimeters.

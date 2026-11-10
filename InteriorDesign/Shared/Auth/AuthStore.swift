@@ -16,6 +16,9 @@ final class AuthStore {
     /// Visualize screen. Only successful pictures count.
     private(set) var imagesThisMonth: Int?
     private(set) var imagesToday: Int?
+    /// AI 3D models made this month (of items or catalog products).
+    private(set) var modelsThisMonth: Int?
+    static let modelsPerMonth = 20
 
     /// The limits, matching app_config on the backend.
     static let imagesPerDay = 3
@@ -153,8 +156,8 @@ final class AuthStore {
         let start = utc.date(from: utc.dateComponents([.year, .month], from: Date()))!
         var components = URLComponents(url: BackendConfig.restURL.appendingPathComponent("usage_events"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
-            URLQueryItem(name: "select", value: "created_at"),
-            URLQueryItem(name: "kind", value: "eq.image"),
+            URLQueryItem(name: "select", value: "kind,created_at"),
+            URLQueryItem(name: "kind", value: "in.(image,model3d)"),
             URLQueryItem(name: "created_at", value: "gte.\(ISO8601DateFormatter().string(from: start))"),
         ]
         var request = URLRequest(url: components.url!)
@@ -162,8 +165,10 @@ final class AuthStore {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
-              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+              let all = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return }
+        modelsThisMonth = all.filter { $0["kind"] as? String == "model3d" }.count
+        let rows = all.filter { $0["kind"] as? String == "image" }
         imagesThisMonth = rows.count
         // "Today" uses the same UTC day as the backend's limit.
         let today = utc.startOfDay(for: Date())

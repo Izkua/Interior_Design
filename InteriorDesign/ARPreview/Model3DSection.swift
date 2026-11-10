@@ -17,8 +17,11 @@ struct Model3DSection: View {
     var allowScan = false
     /// Called after a LiDAR scan with the model (for measuring the item).
     var onScanned: ((Data) -> Void)?
-    /// Called when a new model is made or imported (products save it).
+    /// Called when a new model is made or imported (it's saved right away).
     var onNewModel: ((Data) -> Void)?
+    /// True while the room view is open: the turning preview is taken
+    /// down then, because two 3D views at once left the camera black.
+    var isPaused = false
     let onSeeInRoom: () -> Void
 
     @State private var autoCutout: CGImage?
@@ -37,7 +40,13 @@ struct Model3DSection: View {
                 }
 
                 if let modelData {
-                    ModelPreview(data: modelData)
+                    Group {
+                        if isPaused {
+                            Theme.surfaceAlt
+                        } else {
+                            ModelPreview(data: modelData)
+                        }
+                    }
                         .frame(height: 220)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                         .accessibilityLabel("3D model of \(name). Drag to turn it.")

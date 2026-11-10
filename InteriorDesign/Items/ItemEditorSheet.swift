@@ -21,6 +21,12 @@ struct ItemEditorSheet: View {
     @State private var photoSelection: PhotosPickerItem?
     @State private var confirmDelete = false
     @State private var showAR = false
+    /// The values when the screen opened, to tell if anything changed.
+    @State private var original: ItemDraft
+    /// Saved or deleted already, so closing doesn't save again.
+    @State private var didFinish = false
+    /// A new item that was kept early because it got an AI model.
+    @State private var createdItem: Item?
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -29,7 +35,9 @@ struct ItemEditorSheet: View {
 
     init(item: Item?, defaultRoom: Room? = nil) {
         self.item = item
-        _draft = State(initialValue: item.map(ItemDraft.init(item:)) ?? ItemDraft(room: defaultRoom))
+        let start = item.map(ItemDraft.init(item:)) ?? ItemDraft(room: defaultRoom)
+        _draft = State(initialValue: start)
+        _original = State(initialValue: start)
     }
 
     var body: some View {
@@ -46,7 +54,9 @@ struct ItemEditorSheet: View {
                         cutoutData: $draft.cutoutData,
                         modelData: $draft.modelData,
                         allowScan: true,
-                        onScanned: useScan
+                        onScanned: useScan,
+                        onNewModel: { _ in saveModelNow() },
+                        isPaused: showAR
                     ) {
                         hideKeyboard()
                         showAR = true
@@ -69,14 +79,23 @@ struct ItemEditorSheet: View {
             .navigationTitle(item == nil ? "Add item" : "Edit item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .frame(minHeight: Theme.minTap)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save", action: save)
-                        .fontWeight(.semibold)
-                        .frame(minHeight: Theme.minTap)
+                if item == nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") { dismiss() }
+                            .frame(minHeight: Theme.minTap)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Save", action: save)
+                            .fontWeight(.semibold)
+                            .frame(minHeight: Theme.minTap)
+                    }
+                } else {
+                    // Changes to an existing item save by themselves.
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .fontWeight(.semibold)
+                            .frame(minHeight: Theme.minTap)
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -92,6 +111,9 @@ struct ItemEditorSheet: View {
             .fullScreenCover(isPresented: $showAR) {
                 ARPlaceView(start: [arPiece])
             }
+            .onDisappear(perform: autosave)
+            .onChange(of: draft.cutoutData) { _, _ in saveModelNow() }
+            .onChange(of: draft.modelData) { _, _ in saveModelNow() }
             .onChange(of: photoSelection) { _, selection in
                 loadPhoto(selection)
             }
@@ -272,10 +294,39 @@ struct ItemEditorSheet: View {
 
     // MARK: Save and delete
 
+    /// Saves an existing item's changes when the screen closes, however it
+    /// closes (Done, or swiping down). A new item that already has an AI
+    /// model is kept too, since that model cost a credit.
+    private func autosave() {
+        guard !didFinish else { return }
+        if let target = item ?? createdItem {
+            guard draft != original else { return }
+            draft.apply(to: target)
+            original = draft
+            try? context.save()
+        } else if draft.modelData.map(GLBModel.isGLB) == true {
+            let newItem = draft.makeItem()
+            context.insert(newItem)
+            createdItem = newItem
+            original = draft
+            try? context.save()
+        }
+    }
+
+    /// A new 3D model or cutout is saved to an existing item right away,
+    /// without touching anything else.
+    private func saveModelNow() {
+        guard let item else { return }
+        item.modelData = draft.modelData
+        item.cutoutData = draft.cutoutData
+        try? context.save()
+    }
+
     private func save() {
         hideKeyboard()
-        if let item {
-            draft.apply(to: item)
+        didFinish = true
+        if let target = item ?? createdItem {
+            draft.apply(to: target)
         } else {
             context.insert(draft.makeItem())
         }
@@ -285,6 +336,7 @@ struct ItemEditorSheet: View {
 
     private func delete() {
         guard let item else { return }
+        didFinish = true
         context.delete(item)
         try? context.save()
         dismiss()

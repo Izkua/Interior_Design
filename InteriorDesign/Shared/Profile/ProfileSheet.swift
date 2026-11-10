@@ -140,12 +140,24 @@ struct ProfileSheet: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
 
-                HStack {
-                    Label("AI pictures this month", systemImage: "sparkles")
-                        .font(Typography.subheadline)
-                    Spacer()
-                    Text(auth.imagesThisMonth.map { "\($0) of 10" } ?? "–")
-                        .font(Typography.headline)
+                VStack(spacing: Theme.Space.sm) {
+                    HStack {
+                        Label("AI this month", systemImage: "sparkles")
+                            .font(Typography.subheadline)
+                        Spacer()
+                    }
+                    HStack {
+                        Text("Pictures").font(Typography.caption)
+                        Spacer()
+                        Text(auth.imagesThisMonth.map { "\($0) of \(AuthStore.imagesPerMonth)" } ?? "–")
+                            .font(Typography.headline)
+                    }
+                    HStack {
+                        Text("3D models").font(Typography.caption)
+                        Spacer()
+                        Text(auth.modelsThisMonth.map { "\($0) of \(AuthStore.modelsPerMonth)" } ?? "–")
+                            .font(Typography.headline)
+                    }
                 }
                 .foregroundStyle(Theme.textPrimary)
                 .padding(12)
