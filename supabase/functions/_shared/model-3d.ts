@@ -1,16 +1,17 @@
 // Turning a catalog product's photo into a 3D model (GLB) with Stability
-// AI's Stable Fast 3D. One call per product, ever: the result is saved in
+// AI's Stable Point Aware 3D (SPAR3D). One call per product, ever: the result is saved in
 // Supabase Storage and everyone after that gets the saved copy for free.
 //
-// Price (check before turning it on): Stability lists Stable Fast 3D at
-// 2 credits per successful model, and 1 credit = $0.01, so about $0.02.
+// Price (docs.stability.ai/pricing, checked Nov 2026): SPAR3D is 4
+// credits per successful model and 1 credit = $0.01, so $0.04. (Stable
+// Fast 3D is 10 credits, and SPAR3D also guesses hidden sides better.)
 // Failed calls aren't charged. Credits are prepaid on Stability's site
 // (no auto-reload), and our own cap is in app_config.model_3d.
 
 import type { C3Product } from "./products.ts";
 
 /** What one model costs us, in cents (rounded up). */
-export const MODEL_COST_CENTS = 2;
+export const MODEL_COST_CENTS = 4;
 
 export const BUCKET = "product-models";
 
@@ -43,25 +44,24 @@ export function modelPath(productID: string): string | null {
   return /^[A-Za-z0-9_-]{1,64}$/.test(productID) ? `${productID}.glb` : null;
 }
 
-/** Calls Stable Fast 3D with one photo; returns the GLB file. */
+/** Calls SPAR3D with one photo; returns the GLB file. */
 export async function makeModel(apiKey: string, photo: Uint8Array, mime: string): Promise<Uint8Array> {
   const form = new FormData();
   form.append("image", new Blob([photo as unknown as BlobPart], { type: mime }), "product");
   // 1024 px textures: sharp enough on a phone, and a small file.
   form.append("texture_resolution", "1024");
-  form.append("foreground_ratio", "0.85");
-  const response = await fetch("https://api.stability.ai/v2beta/3d/stable-fast-3d", {
+  const response = await fetch("https://api.stability.ai/v2beta/3d/stable-point-aware-3d", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
   });
   if (!response.ok) {
-    throw new Error(`Stable Fast 3D answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`SPAR3D answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   // Every GLB file starts with "glTF".
   if (bytes.length < 20 || new TextDecoder().decode(bytes.slice(0, 4)) !== "glTF") {
-    throw new Error("Stable Fast 3D didn't return a GLB file.");
+    throw new Error("SPAR3D didn't return a GLB file.");
   }
   return bytes;
 }

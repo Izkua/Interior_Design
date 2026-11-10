@@ -5,7 +5,7 @@ import RealityKit
 
 /// Reads a GLB file (binary glTF, the 3D format AI model makers return)
 /// into plain meshes, so RealityKit can show it. iOS can't open GLB by
-/// itself, and this small reader covers what Stable Fast 3D produces
+/// itself, and this small reader covers what Stability AI's 3D models produce
 /// (triangle meshes with a color texture), so no extra library is needed.
 ///
 /// glTF is Y-up, in meters, with the front toward +Z: the same as RealityKit.

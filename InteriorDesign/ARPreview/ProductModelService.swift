@@ -1,8 +1,8 @@
 import Foundation
 
 /// Gets an AI-made 3D model (GLB) of a catalog product from our backend
-/// (the generate-3d Edge Function, which uses Stability AI's Stable Fast
-/// 3D). Each product's model is made once and shared, and also kept on the
+/// (the generate-3d Edge Function, which uses Stability AI's Stable Point
+/// Aware 3D). Each product's model is made once and shared, and also kept on the
 /// phone, so opening the same product again costs nothing.
 enum ProductModelService {
     enum Failure: LocalizedError, Equatable {

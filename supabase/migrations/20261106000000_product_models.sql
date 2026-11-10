@@ -1,4 +1,4 @@
--- AI 3D models of catalog products (Stability AI Stable Fast 3D).
+-- AI 3D models of catalog products (Stability AI SPAR3D, $0.04 each).
 -- Each product's model is made once, saved in Storage, and shared.
 
 -- Usage rows can now be 3D models too.
@@ -7,7 +7,7 @@ alter table public.usage_events add constraint usage_events_kind_check
   check (kind in ('image', 'label', 'scan', 'model3d'));
 
 -- Kill switch and limits. Off until you add the Stability key and turn it
--- on. Hard cap: $5 a month for everyone (about 250 models at ~2 cents).
+-- on. Hard cap: $5 a month for everyone (about 125 models at 4 cents).
 insert into public.app_config (key, value) values
   ('model_3d', '{"enabled": false, "per_day": 5, "per_month": 20, "monthly_budget_cents": 500}')
 on conflict (key) do nothing;
