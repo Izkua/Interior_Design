@@ -209,6 +209,8 @@ final class ARPlaceController: NSObject {
     private(set) var hasPhotos = false
     /// Pieces shown with an AI-made 3D model, which get a label saying so.
     private(set) var aiModelIDs: Set<UUID> = []
+    /// Models already at true size and in place (sets sized by their table).
+    @ObservationIgnored private var trueSizeIDs: Set<UUID> = []
 
     /// How pieces are drawn: their cut-out photo standing in the room, or
     /// the colored box shape.
@@ -304,6 +306,7 @@ final class ARPlaceController: NSObject {
         if let model = models[original] {
             models[copy.id] = model
             if aiModelIDs.contains(original) { aiModelIDs.insert(copy.id) }
+            if trueSizeIDs.contains(original) { trueSizeIDs.insert(copy.id) }
         }
         copy.productID = nil   // its model, if any, was copied above
         queue([copy])
@@ -314,7 +317,7 @@ final class ARPlaceController: NSObject {
         let piece = pending.removeFirst()
         let entity = Self.makeEntity(for: piece)
         if let model = models[piece.id] {
-            Self.addModel(model, of: piece, to: entity, stretch: aiModelIDs.contains(piece.id))
+            Self.addModel(model, of: piece, to: entity, stretch: aiModelIDs.contains(piece.id), asIs: trueSizeIDs.contains(piece.id))
         } else if let cutout = cutouts[piece.id] {
             Self.addPhoto(cutout, of: piece, to: entity)
         }
@@ -410,16 +413,23 @@ final class ARPlaceController: NSObject {
     /// it couldn't be opened (the photo stays).
     @discardableResult
     private func showAIModel(_ data: Data, for id: UUID, isNew: Bool) async -> Bool {
+        let piece = pending.first { $0.id == id } ?? placed[id]?.piece
+        let isSet = piece.map { ModelFit.isSet(name: $0.name) } ?? false
+        let target = piece.map { SIMD3<Float>(Float($0.widthCm / 100), Float($0.heightCm / 100), Float($0.depthCm / 100)) } ?? .one
         do {
-            let parsed = try await Task.detached {
+            let (parsed, placedAsSet) = try await Task.detached {
                 var model = try GLBModel(data: data)
                 // Stand it up straight and square it before sizing it.
                 model.rotate(by: ModelFit.straightening(model.allPositions))
-                return model
+                // A set (table and chairs): the listed size is the table's,
+                // so size by the table and let the chairs sit around it.
+                let asSet = isSet && model.placeAsSet(target: target)
+                return (model, asSet)
             }.value
             let model = try parsed.entity()
             guard models[id] == nil else { return false }
             aiModelIDs.insert(id)
+            if placedAsSet { trueSizeIDs.insert(id) }
             addModel(model, to: id)
             if isNew { showHint("3D model ready. It's AI-generated, so details may differ.", seconds: 4) }
             if selected?.id == id { selected = placed[id]?.piece }
@@ -453,7 +463,7 @@ final class ARPlaceController: NSObject {
         hasPhotos = true
         if let entry = placed[id] {
             entry.entity.findEntity(named: "photo")?.removeFromParent()
-            Self.addModel(model, of: entry.piece, to: entry.entity, stretch: aiModelIDs.contains(id))
+            Self.addModel(model, of: entry.piece, to: entry.entity, stretch: aiModelIDs.contains(id), asIs: trueSizeIDs.contains(id))
             applyLook()
         }
     }
@@ -600,8 +610,17 @@ final class ARPlaceController: NSObject {
 
     /// Adds the piece's 3D model, standing on the floor in the middle of
     /// its footprint and sized to fit its saved size.
-    static func addModel(_ model: Entity, of piece: ARPiece, to root: Entity, stretch: Bool = false) {
+    /// `asIs`: the model is already at true size and lined up (a set placed
+    /// by its table), so it's used without resizing.
+    static func addModel(_ model: Entity, of piece: ARPiece, to root: Entity, stretch: Bool = false, asIs: Bool = false) {
         let copy = model.clone(recursive: true)
+        if asIs {
+            let holder = Entity()
+            holder.name = "photo"
+            holder.addChild(copy)
+            root.addChild(holder)
+            return
+        }
         let bounds = copy.visualBounds(relativeTo: nil)
         let target: simd_float3 = [Float(piece.widthCm / 100), Float(piece.heightCm / 100), Float(piece.depthCm / 100)]
         let fit: (scale: simd_float3, turned: Bool)
