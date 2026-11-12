@@ -8,6 +8,9 @@ struct SavedModelsView: View {
     @State private var models = SavedModels.shared
     @Query(filter: #Predicate<Item> { $0.modelData != nil }, sort: \Item.createdAt) private var items: [Item]
     @State private var showing: ARPiece?
+    @State private var storePage: StorePage?
+    /// The product whose store link is being fetched.
+    @State private var opening: String?
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
@@ -37,15 +40,30 @@ struct SavedModelsView: View {
                     if !models.entries.isEmpty {
                     Section("Catalog") {
                         ForEach(models.entries) { entry in
-                            Button {
-                                var piece = ARPiece(product: entry.product)
-                                piece?.modelData = models.model(entry.id)
-                                piece?.cutoutData = models.cutout(entry.id)
-                                showing = piece
-                            } label: {
-                                row(entry.product)
+                            HStack(spacing: Theme.Space.sm) {
+                                Button {
+                                    var piece = ARPiece(product: entry.product)
+                                    piece?.modelData = models.model(entry.id)
+                                    piece?.cutoutData = models.cutout(entry.id)
+                                    showing = piece
+                                } label: {
+                                    row(entry.product)
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(!ARPlaceView.isAvailable)
+                                if entry.product.url != nil {
+                                    Button {
+                                        Task { await openProduct(entry.product) }
+                                    } label: {
+                                        Image(systemName: opening == entry.id ? "hourglass" : "arrow.up.right.square")
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(Theme.accent)
+                                            .frame(width: Theme.minTap, height: Theme.minTap)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel("Open \(entry.product.name) at \(entry.product.retailer)")
+                                }
                             }
-                            .disabled(!ARPlaceView.isAvailable)
                         }
                         .onDelete { offsets in
                             for index in offsets { models.remove(models.entries[index].id) }
@@ -53,8 +71,11 @@ struct SavedModelsView: View {
                     }
                     }
                     Section {} footer: {
-                        Text("AI-generated models are approximate. Swipe left on a catalog model to remove it from this phone; your items' models are removed from the item itself.")
-                            .font(Typography.caption)
+                        VStack(alignment: .leading, spacing: Theme.Space.sm) {
+                            Text("Tap a model to see it in your room, or the arrow to open the product at the store. AI-generated models are approximate. Swipe left on a catalog model to remove it from this phone; your items' models are removed from the item itself.")
+                                .font(Typography.caption)
+                            if !models.entries.isEmpty { AffiliateDisclosure() }
+                        }
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -67,7 +88,25 @@ struct SavedModelsView: View {
         .fullScreenCover(item: $showing) { piece in
             ARPlaceView(start: [piece])
         }
+        .sheet(item: $storePage) { page in
+            SafariView(url: page.url).ignoresSafeArea()
+        }
     }
+
+    /// The store page, with a fresh buy link (they expire); the saved link
+    /// is used if the fresh one can't be fetched.
+    private func openProduct(_ product: CatalogProduct) async {
+        opening = product.id
+        defer { opening = nil }
+        var url = product.url
+        if !product.isSample,
+           let fresh = try? await BackendCatalogService(accessToken: { await AuthStore.shared.validAccessToken() }).freshProduct(id: product.id) {
+            url = fresh.url ?? url
+        }
+        if let url { storePage = StorePage(url: url) }
+    }
+
+    struct StorePage: Identifiable { let url: URL; var id: URL { url } }
 
     private func itemRow(_ item: Item) -> some View {
         HStack(spacing: Theme.Space.sm + 4) {

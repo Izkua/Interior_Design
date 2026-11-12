@@ -57,6 +57,7 @@
 		707DEB58FFC0E431885B2719 /* SavedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10DCEE06879FAB20606F935A /* SavedModels.swift */; };
 		71F19FAFDBBFA90C97E4FEE0 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAC2D29348F1D605CC74574 /* LayoutEngineTests.swift */; };
 		725E1F98B5D69861A5971663 /* Item+Color.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB00EE12EDA159BE96D71FF /* Item+Color.swift */; };
+		754FB154CB269B7340AFA983 /* SetFitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4592CD069B650E9B460437C3 /* SetFitTests.swift */; };
 		767ECB40E647A775104C209A /* ReferenceMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86E8709D06316799BF07ED2 /* ReferenceMeasureView.swift */; };
 		76B2BFA7C461E013B4C5BB91 /* GLBModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1984AC1F6F2897FB71E168A /* GLBModelTests.swift */; };
 		82AC5DD5FFC04EA378A7B131 /* CardBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC670766318ADD034D66DA4 /* CardBlur.swift */; };
@@ -183,6 +184,7 @@
 		406AE5B7D2904FC983F494CA /* FurnitureShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FurnitureShape.swift; sourceTree = "<group>"; };
 		408A2774943F3ED13ADCB4BF /* RoomListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomListView.swift; sourceTree = "<group>"; };
 		4499AEBE2C238FC1D15BF261 /* BackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfig.swift; sourceTree = "<group>"; };
+		4592CD069B650E9B460437C3 /* SetFitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetFitTests.swift; sourceTree = "<group>"; };
 		48B7679D6AE8634EDDD28984 /* ItemDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDraft.swift; sourceTree = "<group>"; };
 		4CBED19910FA6AE509DE98EF /* MissingPieces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingPieces.swift; sourceTree = "<group>"; };
 		4D269FF2BB50593EF02B7B32 /* ScanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanService.swift; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 				7EA5285F9B48471BD8C45D67 /* RoomScanTests.swift */,
 				CFB69EAF85D05B057981F430 /* RoomTests.swift */,
 				9150265953BD83A0A8A6FB7A /* SavedModelsTests.swift */,
+				4592CD069B650E9B460437C3 /* SetFitTests.swift */,
 				902916444206D959FD512890 /* StressTests.swift */,
 				99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */,
 				24B23673CCF33402B014AC19 /* WallDecorTests.swift */,
@@ -693,6 +696,7 @@
 				6DE584F77CE6EADAA4D5FAEE /* RoomScanTests.swift in Sources */,
 				E683DD35ED95B8B79B4DDBD6 /* RoomTests.swift in Sources */,
 				ADA7E8DACBECC95276DE6B8F /* SavedModelsTests.swift in Sources */,
+				754FB154CB269B7340AFA983 /* SetFitTests.swift in Sources */,
 				68C8E2991F42F7C6788597D1 /* StressTests.swift in Sources */,
 				C8B83FFE9F2A1FC1197F6286 /* VisualizeTests.swift in Sources */,
 				BECB0B41F57D998B1394294C /* WallDecorTests.swift in Sources */,

@@ -173,6 +173,24 @@ struct GLBModel {
     /// Every corner point of every mesh.
     var allPositions: [SIMD3<Float>] { meshes.flatMap(\.positions) }
 
+    /// Moves the model by `offset`, then grows or shrinks it evenly.
+    mutating func move(by offset: SIMD3<Float>, scale: Float) {
+        for i in meshes.indices {
+            meshes[i].positions = meshes[i].positions.map { ($0 + offset) * scale }
+        }
+    }
+
+    /// Lines a set up with its table (see `ModelFit.setPlacement`): turned
+    /// square, the table's middle over the origin, standing on y = 0, at
+    /// true size. False if no table was found (nothing changes).
+    mutating func placeAsSet(target: SIMD3<Float>) -> Bool {
+        guard let placement = ModelFit.setPlacement(meshes: meshes.map { ($0.positions, $0.indices) }, target: target) else { return false }
+        rotate(by: simd_quatf(angle: placement.turn, axis: [0, 1, 0]))
+        let lowest = allPositions.map(\.y).min() ?? 0
+        move(by: [-placement.tableCenter.x, -lowest, -placement.tableCenter.y], scale: placement.scale)
+        return true
+    }
+
     /// Turns the whole model (points and their facing directions).
     mutating func rotate(by rotation: simd_quatf) {
         for i in meshes.indices {
