@@ -300,13 +300,16 @@ struct ScanRoomView: View {
     // MARK: Review
 
     @State private var straightenCorners = true
+    /// Add the furniture a LiDAR scan found to the room.
+    @State private var addFurniture = true
 
     private var review: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
                 if let original = draft {
                     let straight = RoomStraightener.straightened(original)
-                    let draft = straightenCorners ? (straight ?? original) : original
+                    let shaped = straightenCorners ? (straight ?? original) : original
+                    let draft = addFurniture ? shaped : shaped.withoutFurniture
                     DraftPreview(draft: draft, unit: unit, before: straightenCorners && straight != nil ? original.corners : nil)
                         .frame(height: 300)
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
@@ -333,11 +336,29 @@ struct ScanRoomView: View {
                         }
                         .tint(Theme.accent)
                     }
-                    PrimaryButton(title: "Use this outline", systemImage: "checkmark") {
+                    if !original.furniture.isEmpty {
+                        Toggle(isOn: $addFurniture) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add the furniture it found")
+                                    .font(Typography.headline)
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text(addFurniture
+                                     ? "Found \(ScannedFurniture.summary(original.furniture)), placed where they stand. They're added to Current Items with estimated sizes for you to check. Turn this off if you've already added them."
+                                     : "Only the walls, doors and windows will be used.")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .tint(Theme.accent)
+                    }
+                    PrimaryButton(title: draft.furniture.isEmpty ? "Use this outline" : "Use this room", systemImage: "checkmark") {
                         onApply(draft)
                         dismiss()
                     }
-                    Text("This replaces the room's current outline. You can undo it in the builder.")
+                    Text(draft.furniture.isEmpty
+                         ? "This replaces the room's current outline. You can undo it in the builder."
+                         : "This replaces the room's current outline. Undo in the builder brings back the old outline; remove furniture you don't want from Current Items.")
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -377,7 +398,19 @@ struct DraftPreview: View {
             }
             RoomPlanPainter.paint(&context, corners: draft.corners, features: draft.features, selectedID: nil, space: space, unit: unit)
             AdvancedPlanPainter.paintEditing(&context, corners: draft.corners, selectedWall: nil, activeCorner: nil, uncertainWalls: draft.uncertainWalls, space: space)
+            // Furniture the scan found, as simple boxes.
+            for piece in draft.furniture {
+                let size = piece.footprint
+                let topLeft = space.viewPoint(Point2D(x: piece.x - size.width / 2, y: piece.y - size.depth / 2))
+                let bottomRight = space.viewPoint(Point2D(x: piece.x + size.width / 2, y: piece.y + size.depth / 2))
+                let box = CGRect(x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
+                let shape = Path(roundedRect: box, cornerRadius: 3)
+                context.fill(shape, with: .color(Theme.accent.opacity(0.18)))
+                context.stroke(shape, with: .color(Theme.accent), lineWidth: 1.5)
+            }
         }
-        .accessibilityLabel("Draft outline with \(draft.corners.count) corners")
+        .accessibilityLabel(draft.furniture.isEmpty
+                            ? "Draft outline with \(draft.corners.count) corners"
+                            : "Draft outline with \(draft.corners.count) corners and \(draft.furniture.count) pieces of furniture")
     }
 }

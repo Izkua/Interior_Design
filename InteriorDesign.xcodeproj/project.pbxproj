@@ -45,6 +45,7 @@
 		5DEFB8885A04179BDD1827BD /* FurnitureShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406AE5B7D2904FC983F494CA /* FurnitureShape.swift */; };
 		600555B75330C7AE2D0EECC7 /* ItemLabeling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371093B3CF6A9AD323C89927 /* ItemLabeling.swift */; };
 		6081B5DC45293B247F8AAF9A /* ItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06AA4CB2D6C8472438E23C0E /* ItemTests.swift */; };
+		6121E7403EC647C7CE0058D7 /* SmallDecorRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60602AE617DE99C50F4EAFFE /* SmallDecorRoomView.swift */; };
 		61E6918E06E236CAF18015F3 /* MissingPieces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CBED19910FA6AE509DE98EF /* MissingPieces.swift */; };
 		67AED42053F7D1D8CB04203A /* CatalogProduct.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9CC9396D95B0AFB80C07E3 /* CatalogProduct.swift */; };
 		68C8E2991F42F7C6788597D1 /* StressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 902916444206D959FD512890 /* StressTests.swift */; };
@@ -191,6 +192,7 @@
 		5ECAFDE25CA18AEEDB915C2E /* CutoutMaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutoutMaskTests.swift; sourceTree = "<group>"; };
 		5F3F0BBF3378088389148C78 /* AdvancedRoomCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedRoomCanvas.swift; sourceTree = "<group>"; };
 		5F76AE3FA4056636F0C37E01 /* PlanGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGeometry.swift; sourceTree = "<group>"; };
+		60602AE617DE99C50F4EAFFE /* SmallDecorRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallDecorRoomView.swift; sourceTree = "<group>"; };
 		6127D54EF5D63F97BA29DDD4 /* RecommendedLayoutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedLayoutsView.swift; sourceTree = "<group>"; };
 		61705A4A628E04D4B1CA8540 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		6440D384C0A75976CDD2B027 /* InteriorDesignTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = InteriorDesignTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -402,6 +404,7 @@
 				B73CA4F1C1E4EDCB906A4D11 /* DecorLayoutsView.swift */,
 				938A93DA1A6D32531A1A60CB /* Room+Decor.swift */,
 				A7E0D8C9A3177376F716A51D /* SmallDecor.swift */,
+				60602AE617DE99C50F4EAFFE /* SmallDecorRoomView.swift */,
 				1990A5561D97725C96ABA4D0 /* WallDecorPlanner.swift */,
 			);
 			path = Decor;
@@ -788,6 +791,7 @@
 				01A08CEC0FB3DD615951F9CC /* Settings.swift in Sources */,
 				6E7C6B5DE14971C8A22D628F /* SignInView.swift in Sources */,
 				C5F2392A9849F033CA19E532 /* SmallDecor.swift in Sources */,
+				6121E7403EC647C7CE0058D7 /* SmallDecorRoomView.swift in Sources */,
 				A4329FD659B40739A6127027 /* Theme.swift in Sources */,
 				1DC67EDA7E526CF0437E0BA3 /* Units.swift in Sources */,
 				8337B70C282BDC2CBA15AF95 /* VisualizeService.swift in Sources */,

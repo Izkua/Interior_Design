@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// Turning the room's decor into plain values for the decor planners, and
 /// saving the person's choice back.
@@ -11,14 +12,14 @@ extension Room {
     // MARK: Wall decor
 
     /// Gives every hung piece an entry in Current Items, so wall decor shows
-    /// up there too. TVs and "other" pieces are skipped. Safe to call often.
+    /// up there too. TVs are skipped. Safe to call often.
     @MainActor
     func linkDecorItems() {
         guard let context = modelContext else { return }
         var changed = false
         for index in wallDecor.indices where wallDecor[index].itemID == nil {
             let piece = wallDecor[index]
-            guard piece.kind != .tv, piece.kind != .other else { continue }
+            guard piece.kind != .tv else { continue }
             let item = Item(type: piece.kind.itemType, name: piece.name, widthCm: piece.widthCm,
                             depthCm: piece.depthCm, heightCm: piece.heightCm)
             context.insert(item)
@@ -112,8 +113,63 @@ extension Room {
 
     /// Changes whenever anything the decor planners look at changes.
     var decorSignature: String {
-        let walls = wallDecorForPlanning.map { "\($0.id):\(Int($0.widthCm))x\(Int($0.heightCm))" }.joined(separator: ";")
+        let walls = wallDecorForPlanning.map { "\($0.id):\(Int($0.widthCm))x\(Int($0.heightCm)):\($0.colors.joined())" }.joined(separator: ";")
         let small = items(in: .smallDecor).map { "\($0.uuid):\(Int($0.widthCm))x\(Int($0.depthCm))x\(Int($0.heightCm))" }.joined(separator: ";")
         return [layoutSignature, walls, small, "\(Int(ceilingHeightCm))"].joined(separator: "|")
     }
+}
+
+// MARK: - Photos and colors of wall decor
+
+
+extension Room {
+    /// Changes when a hung piece's photo changes.
+    var decorPhotoKey: String {
+        let items = Dictionary(self.items(in: .wallDecor).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        return wallDecor.map { piece in
+            "\(piece.id):\(piece.itemID.flatMap { items[$0]?.photoData?.count } ?? 0)"
+        }.joined(separator: ";")
+    }
+
+    /// Small copies of the photos of hung pieces, by piece id.
+    @MainActor
+    func decorPhotos() -> [UUID: UIImage] {
+        let items = Dictionary(self.items(in: .wallDecor).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        var result: [UUID: UIImage] = [:]
+        for piece in wallDecor {
+            guard let item = piece.itemID.flatMap({ items[$0] }), let data = item.photoData,
+                  let image = UIImage(data: data) else { continue }
+            result[piece.id] = image.preparingThumbnail(of: CGSize(width: 300, height: 300 * image.size.height / max(image.size.width, 1))) ?? image
+        }
+        return result
+    }
+
+    /// Puts a photo on a hung piece (and its Current Items entry) and reads
+    /// its main colors from it.
+    @MainActor
+    func setDecorPhoto(_ data: Data, for pieceID: UUID) {
+        linkDecorItems()
+        guard let piece = wallDecor.first(where: { $0.id == pieceID }),
+              let itemID = piece.itemID, let item = allItems.first(where: { $0.uuid == itemID }),
+              let jpeg = PhotoResizer.jpeg(from: data), let image = UIImage(data: jpeg) else { return }
+        item.photoData = jpeg
+        let palette = PhotoColors.palette(from: image, count: 3)
+        updateDecor(id: pieceID) { $0.colors = palette.map(\.hex) }
+        try? modelContext?.save()
+    }
+
+    /// The photo of a hung piece, if it has one.
+    func decorPhoto(for pieceID: UUID) -> Data? {
+        guard let itemID = wallDecor.first(where: { $0.id == pieceID })?.itemID else { return nil }
+        return allItems.first { $0.uuid == itemID }?.photoData
+    }
+}
+
+/// Colors a person can tap to say what a piece looks like.
+enum DecorColorOption {
+    static let all: [(name: String, hex: String)] = [
+        ("White", "#F2F0EB"), ("Black", "#1C1C1C"), ("Grey", "#8A8A8A"), ("Beige", "#D8C3A5"),
+        ("Brown", "#7B5235"), ("Green", "#4A7A55"), ("Blue", "#3C5A96"), ("Red", "#B23A3A"),
+        ("Pink", "#E3A1B4"), ("Orange", "#E08A3C"), ("Yellow", "#E6C94F"), ("Purple", "#7B5BA6"),
+    ]
 }

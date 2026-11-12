@@ -85,6 +85,9 @@ struct WallDecor: Codable, Hashable, Identifiable {
     var depthCm: Double
     /// The piece in Current Items, if it's one the person owns.
     var itemID: UUID?
+    /// Its main colors as "#RRGGBB", picked by the person or read from its
+    /// photo. Empty when nobody said (that's fine).
+    var colors: [String] = []
 
     init(kind: DecorKind, name: String? = nil, wall: Int, centerX: Double, centerY: Double? = nil,
          widthCm: Double? = nil, heightCm: Double? = nil, depthCm: Double? = nil, itemID: UUID? = nil) {
@@ -103,7 +106,7 @@ struct WallDecor: Codable, Hashable, Identifiable {
     // Decoded by hand so fields added later fall back to defaults instead
     // of failing to load rooms saved by an older build.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, name, wall, centerX, centerY, widthCm, heightCm, depthCm, itemID
+        case id, kind, name, wall, centerX, centerY, widthCm, heightCm, depthCm, itemID, colors
     }
 
     init(from decoder: Decoder) throws {
@@ -118,7 +121,11 @@ struct WallDecor: Codable, Hashable, Identifiable {
         heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm) ?? kind.defaultSize.height
         depthCm = try c.decodeIfPresent(Double.self, forKey: .depthCm) ?? kind.defaultSize.depth
         itemID = try c.decodeIfPresent(UUID.self, forKey: .itemID)
+        colors = try c.decodeIfPresent([String].self, forKey: .colors) ?? []
     }
+
+    /// The first color, if any.
+    var mainColor: RGB? { colors.first.flatMap(RGB.init(hex:)) }
 
     var rect: WallRect {
         WallRect(minX: centerX - widthCm / 2, minY: centerY - heightCm / 2,

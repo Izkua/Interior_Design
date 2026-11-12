@@ -10,6 +10,35 @@ struct SurfaceSpot: Codable, Hashable, Identifiable, Sendable {
     var hostID: UUID?
     /// From the host's left end to the piece's middle, seen from the front, in cm.
     var offsetCm: Double
+    /// Where it stands, for pieces on the floor (room cm). Nil means "next
+    /// to the furniture", wherever the screen puts it.
+    var floorX: Double? = nil
+    var floorY: Double? = nil
+}
+
+/// Where a piece on a surface is on the floor plan, and back.
+enum SurfacePlacement {
+    /// Unit vector from the host's left end to its right end, as seen by
+    /// someone standing in front of it.
+    static func rightward(_ rotation: Int) -> Point2D {
+        let f = Facing.front(rotation)
+        return Point2D(x: f.y, y: -f.x)
+    }
+
+    /// The plan point of a piece `offset` cm from the host's left end.
+    static func point(offset: Double, on host: PlacedItem) -> Point2D {
+        let r = rightward(host.placement.rotation)
+        let along = offset - host.item.width / 2
+        return Point2D(x: host.center.x + r.x * along, y: host.center.y + r.y * along)
+    }
+
+    /// The offset along the host for a plan point, kept on the host.
+    static func offset(of p: Point2D, on host: PlacedItem, pieceWidth: Double) -> Double {
+        let r = rightward(host.placement.rotation)
+        let along = (p.x - host.center.x) * r.x + (p.y - host.center.y) * r.y + host.item.width / 2
+        let half = min(pieceWidth / 2, host.item.width / 2)
+        return min(max(along, half), host.item.width - half)
+    }
 }
 
 /// A piece of small decor, as the planner sees it.
@@ -104,6 +133,27 @@ enum SmallDecorPlanner {
         if toned.count >= 2 {
             results.append(colorGroups(pieces, surfaces))
         }
+        // More ideas: each piece goes on a surface picked at random from the
+        // ones that suit it, the same way every time for the same room.
+        for n in 1...4 {
+            var rng = SeededRandom(seed: UInt64(n) &* 0x9E37_79B9_7F4A_7C15 &+ UInt64(pieces.count))
+            results.append(plan(pieces, surfaces, label: n == 1 ? "Mix it up" : "Mix it up \(n)",
+                                detail: "A different mix: each piece on another surface that suits it.",
+                                choose: { _, options, _ in options.isEmpty ? nil : options[Int(rng.next() % UInt64(options.count))] }))
+        }
+        // The same surfaces, arranged differently on each: flipped left to
+        // right, and gathered in the middle.
+        if let base = results.first {
+            results.append(SmallDecorSuggestion(
+                label: "Flipped", detail: "The first idea mirrored: what was on the left of each surface goes on the right.",
+                spots: base.spots.map { spot in
+                    guard let hostID = spot.hostID, let s = surfaces.first(where: { $0.id == hostID }) else { return spot }
+                    var flipped = spot
+                    flipped.offsetCm = s.width - spot.offsetCm
+                    return flipped
+                }, leftOut: base.leftOut))
+            results.append(centered(base, pieces: pieces, surfaces: surfaces))
+        }
         var unique: [SmallDecorSuggestion] = []
         for r in results where !unique.contains(where: { same($0.spots, r.spots) }) { unique.append(r) }
         return unique
@@ -126,7 +176,8 @@ enum SmallDecorPlanner {
             if piece.type == .plant, piece.height >= floorPlantHeight { floor.append(piece); continue }
             let options = candidates(for: piece, surfaces: surfaces, assigned: assigned)
             let load = assigned.mapValues(\.count)
-            let pick = isFunctional(piece.type) ? options.first : choose(piece, options, load)
+            let usual = options.first.flatMap(host) == hosts(for: piece.type).first
+            let pick = isFunctional(piece.type) && usual ? options.first : choose(piece, options, load)
             if let pick { assigned[pick.id, default: []].append(piece) } else { leftOut.append(piece.id) }
         }
         return SmallDecorSuggestion(label: label, detail: detail, spots: spots(assigned, surfaces: surfaces, floor: floor), leftOut: leftOut)
@@ -172,15 +223,17 @@ enum SmallDecorPlanner {
     /// Surfaces that suit the piece and still have room for it, best first.
     static func candidates(for piece: DecorPiece, surfaces: [DecorSurface], assigned: [UUID: [DecorPiece]]) -> [DecorSurface] {
         let wanted = hosts(for: piece.type)
-        return surfaces
-            .filter { s in
-                guard let h = host(s), wanted.contains(h), piece.depth <= s.depth + 2 else { return false }
-                return fits(assigned[s.id, default: []] + [piece], on: s)
-            }
+        let roomy = surfaces.filter { s in
+            host(s) != nil && piece.depth <= s.depth + 2 && fits(assigned[s.id, default: []] + [piece], on: s)
+        }
+        let suited = roomy
+            .filter { wanted.contains(host($0)!) }
             .sorted { a, b in
                 let ra = wanted.firstIndex(of: host(a)!) ?? 99, rb = wanted.firstIndex(of: host(b)!) ?? 99
                 return ra != rb ? ra < rb : a.width > b.width
             }
+        // Nothing usual (a monitor with no desk): any top with room will do.
+        return suited.isEmpty ? roomy.sorted { $0.width > $1.width } : suited
     }
 
     static func fits(_ pieces: [DecorPiece], on surface: DecorSurface) -> Bool {
@@ -241,9 +294,45 @@ enum SmallDecorPlanner {
         return result
     }
 
+    /// Each surface's pieces side by side in its middle, as one group.
+    static func centered(_ base: SmallDecorSuggestion, pieces: [DecorPiece], surfaces: [DecorSurface]) -> SmallDecorSuggestion {
+        let byID = Dictionary(uniqueKeysWithValues: pieces.map { ($0.id, $0) })
+        var spots = base.spots
+        for surface in surfaces {
+            let onIt = spots.indices.filter { spots[$0].hostID == surface.id }.sorted { spots[$0].offsetCm < spots[$1].offsetCm }
+            let widths = onIt.map { byID[spots[$0].itemID]?.width ?? 0 }
+            let total = widths.reduce(0, +) + DecorSurface.gap * Double(max(onIt.count - 1, 0))
+            var x = (surface.width - total) / 2
+            for (i, index) in onIt.enumerated() {
+                spots[index].offsetCm = x + widths[i] / 2
+                x += widths[i] + DecorSurface.gap
+            }
+        }
+        return SmallDecorSuggestion(label: "Grouped in the middle",
+                                    detail: "The first idea with each surface's pieces gathered together in its middle.",
+                                    spots: spots, leftOut: base.leftOut)
+    }
+
+    /// True when every piece is on the same surface in about the same spot.
     static func same(_ a: [SurfaceSpot], _ b: [SurfaceSpot]) -> Bool {
         guard a.count == b.count else { return false }
         let other = Dictionary(b.map { ($0.itemID, $0) }, uniquingKeysWith: { x, _ in x })
-        return a.allSatisfy { p in other[p.itemID].map { $0.hostID == p.hostID } ?? false }
+        return a.allSatisfy { p in
+            other[p.itemID].map { $0.hostID == p.hostID && abs($0.offsetCm - p.offsetCm) < 2 } ?? false
+        }
+    }
+}
+
+/// A tiny repeatable random number maker (SplitMix64), so the same room
+/// always gets the same ideas.
+struct SeededRandom {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }

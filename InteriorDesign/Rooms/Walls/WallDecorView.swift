@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 /// The "Walls" page of a room: pick a wall, see it from the front, and
 /// plan where posters, frames, mirrors, and shelves go.
@@ -9,6 +10,8 @@ struct WallDecorView: View {
     @State private var wall: Int
     @State private var selectedID: UUID?
     @State private var showAdd = false
+    /// Small copies of the pieces' photos, drawn on the wall.
+    @State private var photos: [UUID: UIImage] = [:]
 
     init(room: Room, initialWall: Int = 0) {
         self.room = room
@@ -44,7 +47,8 @@ struct WallDecorView: View {
                     corners: room.corners,
                     wall: w,
                     unit: unit,
-                    selectedID: $selectedID
+                    selectedID: $selectedID,
+                    photos: photos
                 ) { moved in
                     room.updateDecor(id: moved.id) { $0 = moved }
                 }
@@ -77,6 +81,7 @@ struct WallDecorView: View {
         }
         // Hung pieces show up in Current Items too.
         .onAppear { room.linkDecorItems() }
+        .task(id: room.decorPhotoKey) { photos = room.decorPhotos() }
         .onChange(of: wall) { _, _ in
             if let id = selectedID, room.wallDecor.first(where: { $0.id == id })?.wall != safeWall {
                 selectedID = nil
@@ -249,6 +254,8 @@ private struct DecorEditorCard: View {
     let onMovedWall: (Int) -> Void
 
     @State private var confirmDelete = false
+    @State private var showWalls = false
+    @State private var photoSelection: PhotosPickerItem?
 
     private var wallLength: Double { room.wallLength(piece.wall) }
 
@@ -284,6 +291,8 @@ private struct DecorEditorCard: View {
                     }
                 }
 
+                lookSection
+
                 // Where to put the nail, roughly: measured from the floor
                 // and from the wall's left corner.
                 VStack(alignment: .leading, spacing: 4) {
@@ -309,45 +318,49 @@ private struct DecorEditorCard: View {
                     }
                 }
 
-                // Their own row, side by side and the same size, so they
-                // never wrap into each other.
-                HStack(spacing: Theme.Space.sm) {
+                // Stacked, full width: Move to wall, then Remove under it.
+                // A plain button opens the wall list (a Menu draws its own
+                // background on top of ours, which looked doubled).
+                VStack(spacing: Theme.Space.sm) {
                     if room.corners.count > 1 {
-                        Menu {
-                            ForEach(0..<room.corners.count, id: \.self) { index in
-                                if index != piece.wall {
-                                    Button(PlanGeometry.wallName(index, cornerCount: room.corners.count)) {
-                                        room.updateDecor(id: piece.id) {
-                                            $0.wall = index
-                                            $0.centerX = room.wallLength(index) / 2
-                                        }
-                                        onMovedWall(index)
-                                    }
-                                }
-                            }
+                        Button {
+                            showWalls = true
                         } label: {
                             Label("Move to wall", systemImage: "arrow.turn.up.right")
                                 .font(Typography.subheadline)
                                 .foregroundStyle(Theme.textPrimary)
-                                .lineLimit(1)
                                 .frame(maxWidth: .infinity, minHeight: Theme.minTap)
                                 .background(Theme.surfaceAlt, in: Capsule())
                         }
+                        .buttonStyle(PressableStyle())
                     }
 
-                    Button(role: .destructive) {
+                    Button {
                         confirmDelete = true
                     } label: {
-                        Label("Remove", systemImage: "trash")
+                        Label("Remove from wall", systemImage: "trash")
                             .font(Typography.subheadline)
                             .foregroundStyle(Theme.danger)
-                            .lineLimit(1)
                             .frame(maxWidth: .infinity, minHeight: Theme.minTap)
                             .background(Theme.danger.opacity(0.1), in: Capsule())
                     }
-                    .accessibilityLabel("Remove from wall")
+                    .buttonStyle(PressableStyle())
                 }
             }
+        }
+        .confirmationDialog("Move \(piece.name) to", isPresented: $showWalls, titleVisibility: .visible) {
+            ForEach(0..<room.corners.count, id: \.self) { index in
+                if index != piece.wall {
+                    Button(PlanGeometry.wallName(index, cornerCount: room.corners.count)) {
+                        room.updateDecor(id: piece.id) {
+                            $0.wall = index
+                            $0.centerX = room.wallLength(index) / 2
+                        }
+                        onMovedWall(index)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Remove \(piece.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Remove", role: .destructive) {
@@ -356,6 +369,76 @@ private struct DecorEditorCard: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    /// Optional: a photo of the piece (shown on the wall, colors read from
+    /// it) or a few color picks, so layouts can match it with the room.
+    private var lookSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.sm) {
+            HStack {
+                Text("Colors")
+                    .font(Typography.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+                Text("optional")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer()
+                if piece.kind != .tv {
+                    PhotosPicker(selection: $photoSelection, matching: .images) {
+                        Label(room.decorPhoto(for: piece.id) == nil ? "Add photo" : "New photo", systemImage: "photo")
+                            .font(Typography.subheadline)
+                            .frame(minHeight: Theme.minTap)
+                    }
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    // Colors read from the photo that aren't in the list.
+                    ForEach(piece.colors.filter { hex in !DecorColorOption.all.contains { $0.hex == hex } }, id: \.self) { hex in
+                        swatch(hex: hex, name: "From the photo")
+                    }
+                    ForEach(DecorColorOption.all, id: \.hex) { option in
+                        swatch(hex: option.hex, name: option.name)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            Text(piece.colors.isEmpty
+                 ? "Tap up to 3 main colors, or add a photo and they're picked for you. Helps layouts match it with your room."
+                 : "Used to match it with your other pieces.")
+                .font(Typography.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .onChange(of: photoSelection) { _, selection in
+            guard let selection else { return }
+            Task {
+                if let data = try? await selection.loadTransferable(type: Data.self) {
+                    room.setDecorPhoto(data, for: piece.id)
+                }
+                photoSelection = nil
+            }
+        }
+    }
+
+    private func swatch(hex: String, name: String) -> some View {
+        let isOn = piece.colors.contains(hex)
+        return Button {
+            room.updateDecor(id: piece.id) { d in
+                if let i = d.colors.firstIndex(of: hex) { d.colors.remove(at: i) }
+                else if d.colors.count < 3 { d.colors.append(hex) }
+            }
+        } label: {
+            Circle()
+                .fill(Color(uiColor: (RGB(hex: hex) ?? RGB(r: 0.5, g: 0.5, b: 0.5)).uiColor))
+                .frame(width: 32, height: 32)
+                .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                .overlay(Circle().stroke(Theme.accent, lineWidth: isOn ? 3 : 0).padding(-4))
+                .frame(width: Theme.minTap, height: Theme.minTap)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     private func sizeField(_ title: String, _ key: WritableKeyPath<WallDecor, Double>, range: ClosedRange<Double>) -> some View {

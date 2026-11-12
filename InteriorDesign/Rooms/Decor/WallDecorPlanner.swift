@@ -44,19 +44,43 @@ enum WallDecorPlanner {
         guard !walls.isEmpty, !pieces.isEmpty else { return [] }
         var results: [WallDecorSuggestion] = []
 
-        if let anchored = aboveAnchor(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) {
-            results.append(anchored)
+        // The main ideas first, then more of each kind: over other pieces
+        // of furniture, a gallery on other walls, and spread differently.
+        let anchors = allAnchors(walls)
+        for (i, anchor) in anchors.enumerated() where i < 4 {
+            if let s = aboveAnchor(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors, anchor: anchor) {
+                results.append(s)
+            }
+            if i == 0 {
+                if let gallery = galleryWall(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) {
+                    results.append(gallery)
+                }
+                if pieces.count > 1, let spread = spreadOut(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) {
+                    results.append(spread)
+                }
+            }
         }
-        if let gallery = galleryWall(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) {
-            results.append(gallery)
+        if anchors.isEmpty {
+            if let gallery = galleryWall(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) { results.append(gallery) }
+            if pieces.count > 1, let spread = spreadOut(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) { results.append(spread) }
         }
-        if pieces.count > 1, let spread = spreadOut(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors) {
-            results.append(spread)
+        let byFree = walls.sorted { freeWidth($0, ceiling: ceiling, placed: []) > freeWidth($1, ceiling: ceiling, placed: []) }
+        for wall in byFree.dropFirst().prefix(2) {
+            if let gallery = galleryWall(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors, on: wall) {
+                results.append(gallery)
+            }
+        }
+        if pieces.count > 1 {
+            for shift in 1..<min(walls.count, 3) {
+                if let spread = spreadOut(walls: walls, pieces: pieces, ceiling: ceiling, colors: colors, shift: shift) {
+                    results.append(spread)
+                }
+            }
         }
 
         // Drop repeats (with one piece, several ideas can come out the same).
         var unique: [WallDecorSuggestion] = []
-        for s in results where !unique.contains(where: { same($0.decor, s.decor) }) {
+        for s in results where !unique.contains(where: { same($0.decor, s.decor) || $0.label == s.label }) {
             unique.append(s)
         }
         return unique
@@ -66,8 +90,9 @@ enum WallDecorPlanner {
 
     /// Art grouped over the main piece of furniture (sofa, bed, ...), the TV
     /// over the TV stand, shelves over the desk, and a mirror on its own.
-    static func aboveAnchor(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB]) -> WallDecorSuggestion? {
-        guard let (wall, anchor, anchorType) = bestAnchor(walls) else { return nil }
+    static func aboveAnchor(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB],
+                            anchor chosen: (wall: PlannerWall, furniture: WallFurniture, type: ItemType)? = nil) -> WallDecorSuggestion? {
+        guard let (wall, anchor, anchorType) = chosen ?? bestAnchor(walls) else { return nil }
         var placed: [WallDecor] = []
         var rest = pieces
 
@@ -131,16 +156,17 @@ enum WallDecorPlanner {
 
     /// Every piece of art together on the wall with the most free space,
     /// in a row or a grid centered at eye level.
-    static func galleryWall(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB]) -> WallDecorSuggestion? {
+    static func galleryWall(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB],
+                            on chosen: PlannerWall? = nil) -> WallDecorSuggestion? {
         let art = pieces.filter { $0.kind != .tv && $0.kind != .shelf }
         guard art.count >= 2 else { return nil }
-        guard let wall = walls.max(by: { freeWidth($0, ceiling: ceiling, placed: []) < freeWidth($1, ceiling: ceiling, placed: []) }) else { return nil }
+        guard let wall = chosen ?? walls.max(by: { freeWidth($0, ceiling: ceiling, placed: []) < freeWidth($1, ceiling: ceiling, placed: []) }) else { return nil }
         let span = freeSpan(wall, height: WallDecorGeometry.eyeLevelCm, ceiling: ceiling, placed: [])
         let group = arranged(art, on: wall, centerX: (span.start + span.end) / 2, middle: WallDecorGeometry.eyeLevelCm,
                              ceiling: ceiling, colors: colors, maxWidth: max(span.end - span.start - 20, 60))
         let placed = group + pieces.filter { p in !art.contains { $0.id == p.id } }
         return finish(
-            label: "Gallery wall",
+            label: chosen == nil ? "Gallery wall" : "Gallery on the \(wall.name.lowercased())",
             detail: "All your art together on \(wall.name.lowercased()), centered at eye level with even gaps.",
             placed: placed, original: pieces, walls: walls, ceiling: ceiling
         )
@@ -148,13 +174,19 @@ enum WallDecorPlanner {
 
     /// The biggest pieces on the biggest walls, one area per wall, each
     /// over furniture when there is some.
-    static func spreadOut(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB]) -> WallDecorSuggestion? {
+    static func spreadOut(walls: [PlannerWall], pieces: [WallDecor], ceiling: Double, colors: [UUID: RGB],
+                          shift: Int = 0) -> WallDecorSuggestion? {
         // Boldest and biggest first, so it lands on the best wall.
         let order = pieces.sorted { score($0, colors) > score($1, colors) }
         var wallOrder = walls.sorted { freeWidth($0, ceiling: ceiling, placed: []) > freeWidth($1, ceiling: ceiling, placed: []) }
         // The wall with the main furniture comes first.
         if let anchor = bestAnchor(walls), let i = wallOrder.firstIndex(where: { $0.index == anchor.wall.index }) {
             wallOrder.insert(wallOrder.remove(at: i), at: 0)
+        }
+        // Other versions start on a different wall.
+        if shift > 0, !wallOrder.isEmpty {
+            let k = shift % wallOrder.count
+            wallOrder = Array(wallOrder[k...] + wallOrder[..<k])
         }
         var placed: [WallDecor] = []
         for (n, piece) in order.enumerated() {
@@ -174,7 +206,7 @@ enum WallDecorPlanner {
             placed.append(d)
         }
         return finish(
-            label: "Around the room",
+            label: shift == 0 ? "Around the room" : "Around the room, version \(shift + 1)",
             detail: "Spreads your pieces over the walls so no wall feels bare, the biggest and boldest on the main wall.",
             placed: placed, original: pieces, walls: walls, ceiling: ceiling
         )
@@ -259,6 +291,17 @@ enum WallDecorPlanner {
         let taken = takenRects(wall, ceiling: ceiling, placed: placed)
         d.centerX = WallDecorGeometry.freeCenterX(width: d.widthCm, height: d.centerY, wallLength: wall.length, taken: taken)
         return WallDecorGeometry.clamped(d, wallLength: wall.length, ceiling: ceiling)
+    }
+
+    /// Every piece of furniture against a wall, best anchor first.
+    static func allAnchors(_ walls: [PlannerWall]) -> [(wall: PlannerWall, furniture: WallFurniture, type: ItemType)] {
+        let all = walls.flatMap { w in w.furniture.map { (wall: w, furniture: $0, type: w.furnitureTypes[$0.id] ?? .other) } }
+        return all
+            .filter { $0.furniture.rect.width >= 40 }
+            .sorted { a, b in
+                let ra = anchorOrder.firstIndex(of: a.type) ?? 99, rb = anchorOrder.firstIndex(of: b.type) ?? 99
+                return ra != rb ? ra < rb : a.furniture.rect.width > b.furniture.rect.width
+            }
     }
 
     static func bestAnchor(_ walls: [PlannerWall]) -> (wall: PlannerWall, furniture: WallFurniture, type: ItemType)? {

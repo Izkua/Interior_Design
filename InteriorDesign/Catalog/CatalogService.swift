@@ -45,7 +45,7 @@ struct BackendCatalogService: CatalogService {
         request.setValue(BackendConfig.publishableKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(await accessToken() ?? BackendConfig.publishableKey)", forHTTPHeaderField: "Authorization")
         request.setValue(DeviceID.current, forHTTPHeaderField: "x-device-id")
-        request.httpBody = try JSONEncoder().encode(query)
+        request.httpBody = try JSONEncoder().encode(Self.wireQuery(query))
 
         let (data, response): (Data, URLResponse)
         do {
@@ -58,7 +58,30 @@ struct BackendCatalogService: CatalogService {
         guard status == 200 else { throw CatalogError.badResponse(status) }
 
         struct Reply: Decodable { var products: [CatalogProduct] }
-        return try JSONDecoder().decode(Reply.self, from: data).products
+        return try JSONDecoder().decode(Reply.self, from: data).products.map(Self.retyped)
+    }
+
+    /// The query as sent. With no search words, decor needs words of its
+    /// own, or the search falls back to "furniture" (benches and tables).
+    static func wireQuery(_ query: CatalogQuery) -> CatalogQuery {
+        var q = query
+        guard q.text.trimmingCharacters(in: .whitespaces).isEmpty else { return q }
+        if let type = q.type, type.category != .furniture {
+            q.text = type.searchWords
+        } else if q.type == nil, let category = q.category, category != .furniture {
+            q.text = category.searchWords
+        }
+        return q
+    }
+
+    /// Our own type guess wins when it finds decor ("table lamp" is a
+    /// table lamp, not a floor lamp), since the server's list is shorter.
+    static func retyped(_ product: CatalogProduct) -> CatalogProduct {
+        var p = product
+        if let local = ProductNormalizer.itemType(nil, name: p.name), local.category != .furniture {
+            p.type = local
+        }
+        return p
     }
 }
 

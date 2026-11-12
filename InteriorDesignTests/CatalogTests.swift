@@ -99,7 +99,72 @@ final class CatalogTests: XCTestCase {
         query.type = .lamp
         query.minRating = 4
         query.materials = ["metal"]
-        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["a"])
+        // "c" has no rating, which means unknown, so it stays.
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["a", "c"])
+    }
+
+    // MARK: One filter on live data (bug: "Nothing matches" with one filter)
+
+    func testStyleFilterKeepsProductsWithNoStyleData() {
+        // The live catalog never sends styles, so every product has none.
+        let items = [product("a", 100), product("b", 200)]
+        var query = CatalogQuery()
+        query.styles = ["Modern"]
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["a", "b"])
+    }
+
+    func testStyleFilterStillHidesAKnownMismatch() {
+        let items = [product("modern", 100, styles: ["Contemporary"]), product("farm", 100, styles: ["Industrial"])]
+        var query = CatalogQuery()
+        query.styles = ["Modern"]
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["modern"])
+    }
+
+    func testRatingFilterKeepsUnratedProducts() {
+        let items = [product("unrated", 100, rating: nil), product("low", 100, rating: 2.5), product("high", 100, rating: 4.6)]
+        var query = CatalogQuery()
+        query.minRating = 4
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["unrated", "high"])
+    }
+
+    func testMaterialFilterUnderstandsRetailerWords() {
+        let items = [
+            product("oak", 100, materials: ["Solid Oak"]),
+            product("engineered", 100, materials: ["Engineered Wood"]),
+            product("steel", 100, materials: ["Powder-coated steel"]),
+            product("unknown", 100, materials: []),
+        ]
+        var query = CatalogQuery()
+        query.materials = ["Wood"]
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["oak", "engineered", "unknown"])
+    }
+
+    func testFabricMatchesUpholsteryWords() {
+        XCTAssertTrue(CatalogRanking.matches(["Upholstered polyester blend"], ["Fabric"]))
+        XCTAssertTrue(CatalogRanking.matches(["Velvet"], ["Fabric"]))
+        XCTAssertFalse(CatalogRanking.matches(["Metal"], ["Fabric"]))
+    }
+
+    func testMatchingUsesWholeWordStarts() {
+        // "ash" is a wood, but "cashmere" is not.
+        XCTAssertFalse(CatalogRanking.matches(["Cashmere"], ["Wood"]))
+        XCTAssertTrue(CatalogRanking.matches(["White ash"], ["Wood"]))
+    }
+
+    func testColorFilterUnderstandsSpellingsAndShades() {
+        let gray = CatalogProduct(id: "g", name: "Chair", price: 50, colors: ["Light Gray"], retailer: "T")
+        let navy = CatalogProduct(id: "n", name: "Chair", price: 50, colors: ["Navy"], retailer: "T")
+        let red = CatalogProduct(id: "r", name: "Chair", price: 50, colors: ["Red"], retailer: "T")
+        var query = CatalogQuery()
+        query.colors = ["Grey", "Blue"]
+        XCTAssertEqual(CatalogRanking.filter([gray, navy, red], query: query, budget: ShoppingBudget()).map(\.id), ["g", "n"])
+    }
+
+    func testTypeFilterKeepsProductsOfUnknownType() {
+        let items = [product("lamp", 50, type: .lamp), product("unknown", 50, type: nil), product("sofa", 50, type: .sofa)]
+        var query = CatalogQuery()
+        query.type = .lamp
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["lamp", "unknown"])
     }
 
     func testTextSearchMatchesAllWords() {

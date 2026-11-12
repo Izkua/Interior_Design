@@ -266,3 +266,102 @@ final class SmallDecorPlannerTests: XCTestCase {
         XCTAssertFalse(MissingPieces.suggest(for: [sofa]).contains { $0.type.category != .furniture })
     }
 }
+
+final class DecorRoundTwoTests: XCTestCase {
+    func testDecorSearchesSendDecorWords() {
+        var q = CatalogQuery()
+        q.category = .wallDecor
+        XCTAssertEqual(BackendCatalogService.wireQuery(q).text, "wall art decor")
+        q.type = .tableLamp
+        XCTAssertEqual(BackendCatalogService.wireQuery(q).text, "table lamp")
+        q.text = "brass"
+        XCTAssertEqual(BackendCatalogService.wireQuery(q).text, "brass")
+        var furniture = CatalogQuery()
+        furniture.category = .furniture
+        XCTAssertEqual(BackendCatalogService.wireQuery(furniture).text, "")
+    }
+
+    func testServerTypesAreFixedForDecor() {
+        let lamp = CatalogProduct(id: "1", name: "Linen Table Lamp", price: 40, type: .lamp, retailer: "S")
+        XCTAssertEqual(BackendCatalogService.retyped(lamp).type, .tableLamp)
+        let bench = CatalogProduct(id: "2", name: "Oak dining bench", price: 90, retailer: "S")
+        XCTAssertNil(BackendCatalogService.retyped(bench).type)
+    }
+
+    func testPosterPalette() {
+        let red = RGB(r: 0.8, g: 0.1, b: 0.1), blue = RGB(r: 0.1, g: 0.2, b: 0.8)
+        let pixels = Array(repeating: red, count: 1500) + Array(repeating: blue, count: 804)
+        let palette = PhotoColors.palette(fromPixels: pixels, count: 3)
+        XCTAssertEqual(palette.count, 2)
+        XCTAssertEqual(palette.first?.colorName, "Brown")  // a deep red reads as warm brown-red
+        XCTAssertEqual(palette.last?.colorName, "Blue")
+    }
+
+    func testSurfacePlacementRoundTrip() {
+        let desk = LayoutItem(id: UUID(), type: .desk, name: "Desk", width: 140, depth: 70, height: 75)
+        for rotation in [0, 90, 180, 270] {
+            let host = PlacedItem(item: desk, placement: ItemPlacement(itemID: desk.id, x: 200, y: 150, rotation: rotation))
+            let p = SurfacePlacement.point(offset: 30, on: host)
+            XCTAssertEqual(SurfacePlacement.offset(of: p, on: host, pieceWidth: 20), 30, accuracy: 0.01)
+        }
+        // Kept on the desk.
+        let host = PlacedItem(item: desk, placement: ItemPlacement(itemID: desk.id, x: 200, y: 150, rotation: 0))
+        XCTAssertEqual(SurfacePlacement.offset(of: Point2D(x: 900, y: 150), on: host, pieceWidth: 20), 130, accuracy: 0.01)
+    }
+
+    func testSkipDepth() {
+        var steps = MeasureSteps()
+        steps.setStart(); steps.setEnd(distanceCm: 45)   // height
+        steps.setStart(); steps.setEnd(distanceCm: 62)   // width
+        XCTAssertEqual(steps.current, .depth)
+        steps.skip(using: 20)
+        XCTAssertTrue(steps.isDone)
+        XCTAssertEqual(steps.value(.depth), 20)
+    }
+
+    func testOldDecorStillLoads() throws {
+        let json = #"{"kind":"poster","wall":1,"centerX":100}"#.data(using: .utf8)!
+        let piece = try JSONDecoder().decode(WallDecor.self, from: json)
+        XCTAssertEqual(piece.colors, [])
+        XCTAssertNil(piece.mainColor)
+    }
+}
+
+final class MoreIdeasTests: XCTestCase {
+    func testMoreWallIdeasHaveUniqueNames() {
+        let sofaID = UUID(), deskID = UUID()
+        let walls = [
+            PlannerWall(index: 0, name: "Top wall", length: 400, blocked: [],
+                        furniture: [WallFurniture(id: sofaID, name: "Sofa", rect: WallRect(minX: 100, minY: 0, maxX: 300, maxY: 85))],
+                        furnitureTypes: [sofaID: .sofa]),
+            PlannerWall(index: 1, name: "Right wall", length: 350, blocked: [],
+                        furniture: [WallFurniture(id: deskID, name: "Desk", rect: WallRect(minX: 50, minY: 0, maxX: 190, maxY: 75))],
+                        furnitureTypes: [deskID: .desk]),
+            PlannerWall(index: 2, name: "Bottom wall", length: 400, blocked: [], furniture: []),
+        ]
+        let pieces = (0..<3).map { _ in WallDecor(kind: .frame, wall: 0, centerX: 0) }
+        let ideas = WallDecorPlanner.suggest(walls: walls, pieces: pieces, ceiling: 250)
+        XCTAssertGreaterThan(ideas.count, 3)
+        XCTAssertEqual(Set(ideas.map(\.label)).count, ideas.count)
+    }
+
+    func testIdeaWindowWraps() {
+        XCTAssertEqual(IdeaPage.window([1, 2, 3, 4, 5], start: 3), [4, 5, 1])
+        XCTAssertEqual(IdeaPage.window([1, 2], start: 0), [1, 2])
+    }
+}
+
+final class SmallDecorVarietyTests: XCTestCase {
+    func testMonitorWithNoDeskStillGetsSeveralIdeas() {
+        let coffee = DecorSurface(id: UUID(), type: .table, name: "Coffee table", width: 110, depth: 60, height: 45)
+        let stand = DecorSurface(id: UUID(), type: .tvStand, name: "TV stand", width: 150, depth: 40, height: 50)
+        let shelf = DecorSurface(id: UUID(), type: .shelf, name: "Bookshelf", width: 80, depth: 30, height: 180)
+        let s = ItemType.monitor.defaultSize
+        let monitor = DecorPiece(id: UUID(), type: .monitor, name: "Monitor", width: s.width, depth: s.depth, height: s.height)
+        let plant = DecorPiece(id: UUID(), type: .plant, name: "Plant", width: 25, depth: 25, height: 40)
+        let ideas = SmallDecorPlanner.suggest(pieces: [monitor, plant], surfaces: [coffee, stand, shelf])
+        XCTAssertGreaterThanOrEqual(ideas.count, 3)
+        // It always finds somewhere to go.
+        XCTAssertTrue(ideas.allSatisfy { $0.leftOut.isEmpty })
+    }
+}

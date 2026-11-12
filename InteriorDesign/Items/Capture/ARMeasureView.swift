@@ -12,6 +12,10 @@ import simd
 enum ARMeasure {
     static var isAvailable: Bool { ARWorldTrackingConfiguration.isSupported }
 
+    /// Below this (the sine of about 12°), a ray is too close to running
+    /// along a plane to place a point on it reliably.
+    static let minGrazing: Float = 0.2
+
     /// Straight-line distance between two points in the room, in cm.
     /// (ARKit works in meters.)
     static func distanceCm(_ a: simd_float3, _ b: simd_float3) -> Double {
@@ -190,6 +194,17 @@ struct MeasureSteps: Equatable {
         return w < d * 0.9
     }
 
+    /// Fills in the current size without measuring it (for example, a
+    /// monitor's depth, which is hard to aim at).
+    mutating func skip(using cm: Double) {
+        guard let current, cm > 0 else { return }
+        values[current.rawValue] = cm
+        history.removeAll { $0 == current }
+        history.append(current)
+        chosen = nil
+        hasStart = false
+    }
+
     mutating func swapWidthAndDepth() {
         values.swapAt(0, 1)
     }
@@ -203,6 +218,9 @@ struct ARMeasureView: View {
     let onDone: (_ width: Double, _ depth: Double, _ height: Double) -> Void
     /// "Type the sizes instead": close the camera and go to typing.
     var onTypeInstead: (() -> Void)? = nil
+    /// Decor that stands on a desk or table (a monitor, a lamp): measured
+    /// from that surface, and its depth can be skipped.
+    var onSurface = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var steps = MeasureSteps()
@@ -232,7 +250,7 @@ struct ARMeasureView: View {
                 if let current = steps.current, current != .height, model.topY != nil {
                     Picker("Measure at", selection: $measureAtTop) {
                         Text("Top of item").tag(true)
-                        Text("Floor").tag(false)
+                        Text(onSurface ? "Desk or table" : "Floor").tag(false)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, Theme.Space.md)
@@ -254,6 +272,19 @@ struct ARMeasureView: View {
                         .padding(.horizontal, 16).padding(.vertical, 8)
                         .background(current.color.opacity(0.9), in: Capsule())
                         .accessibilityLabel("\(current.name) so far, \(Length.formatFurniture(live, system: unit))")
+                }
+                if onSurface, steps.current == .depth, !steps.hasStart {
+                    Button("Skip depth (use \(Length.formatFurniture(typical(.depth), system: unit)))") {
+                        steps.skip(using: typical(.depth))
+                        model.clearStart()
+                        model.syncLines(steps)
+                    }
+                    .font(Typography.subheadline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: Theme.minTap)
+                    .background(MeasureDimension.depth.color.opacity(0.8), in: Capsule())
+                    .accessibilityHint("Thin things like monitors are hard to measure front to back. You can change it after.")
                 }
                 Button("Type the sizes instead") {
                     dismiss()
@@ -296,6 +327,9 @@ struct ARMeasureView: View {
             UIAccessibility.post(notification: .announcement, argument: "Step \(steps.stepNumber) of 3. Measure the \(next.name).")
         }
         .onAppear {
+            // Thin, upright things have no top to aim across: measure on
+            // the desk or table they stand on instead.
+            if onSurface { measureAtTop = false }
             model.currentColor = steps.current?.uiColor ?? .systemBlue
             model.upcoming = steps.current
             model.measureAtTop = measureAtTop
@@ -328,7 +362,7 @@ struct ARMeasureView: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Step \(steps.stepNumber) of 3: \(current.name)")
-                Text(current.explanation)
+                Text(onSurface && current == .height ? "Height: from the desk or table it stands on to its highest point." : current.explanation)
                     .font(Typography.subheadline)
                     .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
@@ -391,6 +425,8 @@ struct ARMeasureView: View {
         return nil
     }
 
+    private var floorWord: String { onSurface ? "desk or table" : "floor" }
+
     private var instruction: String {
         if let problem = model.problem { return problem }
         guard let current = steps.current else { return "Done" }
@@ -399,23 +435,23 @@ struct ARMeasureView: View {
                 ? "Now tilt up and aim at the very top."
                 : (measureAtTop && model.topY != nil
                     ? "Move the ring to the opposite edge of the top, then tap Set end."
-                    : "Move the ring along the floor to the other edge, then tap Set end.")
+                    : "Move the ring along the \(floorWord) to the other edge, then tap Set end.")
         }
         if !model.surfaceUnderDot {
-            return "Point at the floor and move your phone a little until the dot lights up."
+            return "Point at the \(floorWord) and move your phone a little until the dot lights up."
         }
         let onTop = measureAtTop && model.topY != nil
         switch current {
         case .width:
             return onTop
                 ? "Put the ring on the LEFT edge of the top of the item, then tap Set start."
-                : "Put the ring on the floor touching the LEFT edge of the item, then tap Set start."
+                : "Put the ring on the \(floorWord) right below the LEFT edge of the item, then tap Set start."
         case .depth:
             return onTop
                 ? "Put the ring on the FRONT edge of the top of the item, then tap Set start."
-                : "Put the ring on the floor touching the FRONT edge of the item, then tap Set start."
+                : "Put the ring on the \(floorWord) touching the FRONT edge of the item, then tap Set start."
         case .height:
-            return "Put the ring on the floor right below the highest point, then tap Set start. Hold still when you tap."
+            return "Put the ring on the \(floorWord) right at the bottom of the item, below its highest point, then tap Set start. Hold still when you tap."
         }
     }
 
@@ -647,7 +683,13 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         if step == 2 {
             return ARMeasure.pointOnVerticalLine(base: start, origin: ray.origin, direction: ray.direction)
         }
-        let plane = ARMeasure.guidePlane(for: step, start: start, cameraPosition: ray.origin)
+        var plane = ARMeasure.guidePlane(for: step, start: start, cameraPosition: ray.origin)
+        // Aiming almost level with the plane (a thin top seen from the
+        // side) shoots the point far away. Use a standing plane through the
+        // start, facing the phone, instead: the far edge lands on the item.
+        if abs(simd_dot(ray.direction, plane.normal)) < ARMeasure.minGrazing {
+            plane = ARMeasure.guidePlane(for: 2, start: start, cameraPosition: ray.origin)
+        }
         if let point = ARMeasure.intersect(origin: ray.origin, direction: ray.direction, planePoint: plane.point, normal: plane.normal) {
             return point
         }
@@ -732,6 +774,8 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     /// Where the aim meets the top plane, when measuring across the top.
     private func topPlanePoint() -> simd_float3? {
         guard measureAtTop, let upcoming, upcoming != .height, let topY, let ray = aimingRay() else { return nil }
+        // Aiming almost level with the top makes tiny moves jump far away.
+        guard abs(ray.direction.y) > ARMeasure.minGrazing else { return nil }
         return ARMeasure.intersect(origin: ray.origin, direction: ray.direction,
                                    planePoint: simd_float3(0, topY, 0), normal: simd_float3(0, 1, 0))
     }

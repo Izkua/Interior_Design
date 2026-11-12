@@ -27,6 +27,7 @@ struct CaptureFlowView: View {
     @State private var cameraState = CameraAccess.state
     @State private var showCamera = false
     @State private var showAR = false
+    @State private var showLiDARScan = false
     @State private var photoSelection: PhotosPickerItem?
 
     var labeler: LabelingService = PreferredLabelingService()
@@ -79,7 +80,18 @@ struct CaptureFlowView: View {
             }, onTypeInstead: {
                 method = .typical
                 path.append(.confirm)
-            })
+            }, onSurface: draft.type.category == .smallDecor)
+        }
+        // LiDAR phones: scan the piece in 3D. The model is true to size,
+        // so it measures the piece and becomes its 3D model too.
+        .fullScreenCover(isPresented: $showLiDARScan) {
+            #if !targetEnvironment(simulator)
+            ObjectScanView { data in
+                draft.modelData = data
+                method = draft.useScannedSize(data) ? .lidar : .typical
+                path.append(.confirm)
+            }
+            #endif
         }
         .onChange(of: photoSelection) { _, selection in
             guard let selection else { return }
@@ -213,6 +225,11 @@ struct CaptureFlowView: View {
                     method = .typical
                     path.append(.confirm)
                 }
+                if ObjectScan.isSupported {
+                    option("Scan in 3D with LiDAR", "Walk around the piece. Measures it and makes a 3D model. Takes a few minutes.", "cube.transparent") {
+                        showLiDARScan = true
+                    }
+                }
             }
             .padding(Theme.Space.md)
         }
@@ -261,11 +278,12 @@ struct CaptureFlowView: View {
 
 /// How a captured item's size was found, for the confidence note.
 enum CaptureSizeMethod {
-    case typical, reference, ar
+    case typical, reference, ar, lidar
 
     var note: String {
         switch self {
         case .ar: return "Measured in AR. Usually close, but check edges that were hard to aim at."
+        case .lidar: return "Measured by the LiDAR scan. Usually within a couple of centimeters; parts the scan couldn't see may be cut off."
         case .reference: return "Worked out from the reference in your photo. This can be off by 10% or more if the reference wasn't right next to the furniture. Depth can't be seen in one photo, so it's the usual depth for this type."
         case .typical: return "These are typical sizes for this type, not your piece. Measure it if you can."
         }

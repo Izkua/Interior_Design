@@ -1,5 +1,6 @@
 import SwiftUI
 import RealityKit
+import os
 
 /// Scans a piece of furniture into a real 3D model with Apple's Object
 /// Capture: walk slowly around it while the phone takes photos, then the
@@ -21,6 +22,8 @@ enum ObjectScan {
 }
 
 #if !targetEnvironment(simulator)
+private let scanLog = Logger(subsystem: "com.isabellasi.InteriorDesign", category: "ObjectScan")
+
 struct ObjectScanView: View {
     /// Called with the finished model (USDZ file contents).
     let onFinished: (Data) -> Void
@@ -28,6 +31,9 @@ struct ObjectScanView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var session: ObjectCaptureSession?
     @State private var phase: Phase = .starting
+    /// True once we've waited a long time for the camera to get going.
+    @State private var isSlowToStart = false
+    @State private var startWatcher: Task<Void, Never>?
     @State private var folder = FileManager.default.temporaryDirectory.appendingPathComponent("ObjectScan-\(UUID().uuidString)", isDirectory: true)
 
     enum Phase: Equatable {
@@ -62,7 +68,16 @@ struct ObjectScanView: View {
         }
         .statusBarHidden()
         .task { await start() }
-        .onDisappear { cleanUp() }
+        // Also follow the session's state directly (it's observable), in
+        // case an update from `stateUpdates` is missed.
+        .onChange(of: stateName) { _, name in
+            scanLog.info("state (observed): \(name, privacy: .public)")
+            if let session, case .ready = session.state { tryStartDetecting(session) }
+        }
+        .onDisappear {
+            startWatcher?.cancel()
+            cleanUp()
+        }
     }
 
     private var isScanning: Bool {
@@ -74,8 +89,21 @@ struct ObjectScanView: View {
         VStack(spacing: Theme.Space.sm) {
             switch phase {
             case .starting:
-                ProgressView().tint(.white)
-                Text("Getting the camera ready…")
+                if isSlowToStart {
+                    Text("Still waiting for the camera. Close any other camera apps, then try again in good light.")
+                        .multilineTextAlignment(.center)
+                    PrimaryButton(title: "Close", systemImage: "xmark") { cancel() }
+                } else {
+                    ProgressView().tint(.white)
+                    Text("Getting the camera ready…")
+                    Text("Move your iPhone slowly and point it at the floor near the piece.")
+                        .font(Typography.caption)
+                        .multilineTextAlignment(.center)
+                }
+                // Shows what the camera is doing, so it's clear it isn't stuck.
+                Text("Camera status: \(stateName)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.7))
             case .detecting:
                 Text("Point at the piece so the box fits around it. Drag the box's edges to adjust.")
                     .multilineTextAlignment(.center)
@@ -109,6 +137,11 @@ struct ObjectScanView: View {
         .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
     }
 
+    /// The session's state as text, for logging and change tracking.
+    private var stateName: String {
+        session.map { String(describing: $0.state) } ?? "none"
+    }
+
     private var shots: Int { session?.numberOfShotsTaken ?? 0 }
     private var canFinish: Bool { (session?.userCompletedScanPass ?? false) || shots >= 30 }
 
@@ -137,24 +170,68 @@ struct ObjectScanView: View {
         let newSession = ObjectCaptureSession()
         newSession.start(imagesDirectory: images, configuration: configuration)
         session = newSession
+        scanLog.info("session started, state: \(String(describing: newSession.state), privacy: .public)")
+        startWatcher = Task { await watchStart(newSession) }
 
+        // The session can already be ready before we start listening, and
+        // the updates below only report changes, so look at where it is
+        // now first. (Missing that left the screen stuck on "Getting the
+        // camera ready".)
+        if await handle(newSession.state, session: newSession, images: images, checkpoint: checkpoint) { return }
         for await state in newSession.stateUpdates {
-            switch state {
-            case .ready:
-                if newSession.startDetecting() { phase = .detecting }
-            case .detecting:
-                phase = .detecting
-            case .capturing:
-                phase = .capturing
-            case .completed:
-                await build(images: images, checkpoint: checkpoint)
-                return
-            case .failed(let error):
-                phase = .failed("The scan stopped: \(error.localizedDescription)")
-                return
-            default:
-                break
+            scanLog.info("state: \(String(describing: state), privacy: .public)")
+            if await handle(state, session: newSession, images: images, checkpoint: checkpoint) { return }
+        }
+    }
+
+    /// Reacts to one session state. Returns true when scanning is over.
+    private func handle(_ state: ObjectCaptureSession.CaptureState, session newSession: ObjectCaptureSession,
+                        images: URL, checkpoint: URL) async -> Bool {
+        switch state {
+        case .ready:
+            // Starting to look for the piece moves on to .detecting. This
+            // can be refused until the camera is tracking, and then no new
+            // state arrives, so `watchStart` keeps trying.
+            tryStartDetecting(newSession)
+        case .detecting:
+            phase = .detecting
+        case .capturing:
+            phase = .capturing
+        case .completed:
+            await build(images: images, checkpoint: checkpoint)
+            return true
+        case .failed(let error):
+            scanLog.error("session failed: \(error.localizedDescription, privacy: .public)")
+            phase = .failed("The scan stopped: \(error.localizedDescription)")
+            return true
+        default:
+            break
+        }
+        return false
+    }
+
+    /// Asks the session to start looking for the piece, once it's ready.
+    private func tryStartDetecting(_ session: ObjectCaptureSession) {
+        guard phase == .starting, case .ready = session.state else { return }
+        if session.startDetecting() {
+            scanLog.info("startDetecting accepted")
+            phase = .detecting
+        } else {
+            scanLog.info("startDetecting refused, will retry")
+        }
+    }
+
+    /// While the camera is getting ready, retries starting detection every
+    /// second, and after 15 seconds shows a hint with a Close button.
+    private func watchStart(_ session: ObjectCaptureSession) async {
+        let began = Date.now
+        while !Task.isCancelled, phase == .starting {
+            tryStartDetecting(session)
+            if !isSlowToStart, Date.now.timeIntervalSince(began) > 15, phase == .starting {
+                scanLog.error("still starting after 15 s, state: \(String(describing: session.state), privacy: .public)")
+                isSlowToStart = true
             }
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 
@@ -196,6 +273,7 @@ struct ObjectScanView: View {
     }
 
     private func cancel() {
+        startWatcher?.cancel()
         session?.cancel()
         dismiss()
     }

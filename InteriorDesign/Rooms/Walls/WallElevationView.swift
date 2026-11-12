@@ -17,6 +17,8 @@ struct WallElevationView: View {
     let wall: Int
     let unit: UnitSystem
     @Binding var selectedID: UUID?
+    /// Photos of the pieces (by piece id), drawn on the wall when there are some.
+    var photos: [UUID: UIImage] = [:]
     /// Called once when a drag ends, with the piece's new spot.
     let onMove: (WallDecor) -> Void
 
@@ -61,12 +63,25 @@ struct WallElevationView: View {
         let h = max(piece.heightCm * map.scale, 2)
         let tint = warn ? Theme.danger : Theme.accent
 
+        let photo = photos[piece.id]
+        let color = piece.mainColor.map { Color(uiColor: $0.uiColor) }
         return ZStack {
+            if let photo {
+                // The person's own poster, filling its frame.
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: w, height: h)
+                    .clipShape(shape(for: piece.kind))
+            } else if let color {
+                shape(for: piece.kind).fill(color)
+            } else {
+                shape(for: piece.kind)
+                    .fill(tint.opacity(selected ? 0.35 : 0.18))
+            }
             shape(for: piece.kind)
-                .fill(tint.opacity(selected ? 0.35 : 0.18))
-            shape(for: piece.kind)
-                .stroke(tint, lineWidth: selected ? 2 : 1)
-            if w >= 24 && h >= 24 {
+                .stroke(warn ? Theme.danger : (photo != nil || color != nil ? Theme.textPrimary : tint), lineWidth: selected ? 3 : 1)
+            if photo == nil, color == nil, w >= 24 && h >= 24 {
                 Image(systemName: piece.kind.symbol)
                     .font(.system(size: min(w, h) * 0.35))
                     .foregroundStyle(tint)

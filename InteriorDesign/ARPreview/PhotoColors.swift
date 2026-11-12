@@ -88,6 +88,24 @@ enum PhotoColors {
         return FurnitureColors(main: main, accent: second ?? main.darker(0.4))
     }
 
+    /// The main colors across a whole picture (a poster, a print), most
+    /// common first, leaving out near-repeats. Up to `count` of them.
+    static func palette(from image: UIImage, count: Int = 3) -> [RGB] {
+        guard let pixels = pixels(of: image, side: 48) else { return [] }
+        return palette(fromPixels: pixels, count: count)
+    }
+
+    static func palette(fromPixels pixels: [RGB], count: Int = 3) -> [RGB] {
+        let minimum = max(pixels.count / 25, 1)
+        var kept: [RGB] = []
+        for group in groups(pixels) where group.count >= minimum {
+            let color = group.average
+            if !kept.contains(where: { $0.distance(to: color) < 0.2 }) { kept.append(color) }
+            if kept.count == count { break }
+        }
+        return kept
+    }
+
     /// Colors from the names catalog products list (like "Grey"), for
     /// products without a photo.
     static func colors(named names: [String], type: ItemType) -> FurnitureColors {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// A rough room outline from a scan, before the person checks it.
 ///
@@ -33,9 +34,19 @@ struct RoomDraft: Equatable, Sendable {
     var closed: Bool
     var nextDirection: Direction?
     var nextHint: String?
+    /// Furniture a LiDAR scan found, ready to add to the room. Other scans
+    /// leave this empty.
+    var furniture: [ScannedFurniture] = []
 
     /// Walls below this confidence get highlighted for the person to check.
     static let confidentEnough = 0.6
+
+    /// The same draft with no furniture: just walls, doors and windows.
+    var withoutFurniture: RoomDraft {
+        var copy = self
+        copy.furniture = []
+        return copy
+    }
 
     /// Walls nobody saw clearly.
     var uncertainWalls: [Int] {
@@ -45,6 +56,39 @@ struct RoomDraft: Equatable, Sendable {
     /// The scan is done when the outline is closed and every wall was seen.
     var isComplete: Bool {
         closed && walls.allSatisfy(\.seen)
+    }
+}
+
+/// A piece of furniture a LiDAR (RoomPlan) scan found, in the draft's
+/// centimeters. Its size is a box around the piece, so it's an estimate.
+struct ScannedFurniture: Equatable, Sendable {
+    var type: ItemType
+    var widthCm: Double
+    var depthCm: Double
+    var heightCm: Double
+    /// Center on the floor plan.
+    var x: Double
+    var y: Double
+    /// 0, 90, 180, or 270 degrees, like `ItemPlacement`.
+    var rotation: Int
+
+    /// The floor it covers: turned 90° or 270°, width and depth swap.
+    var footprint: (width: Double, depth: Double) {
+        rotation % 180 == 0 ? (widthCm, depthCm) : (depthCm, widthCm)
+    }
+
+    /// "1 bed, 2 chairs and a table" style summary for the review screen.
+    static func summary(_ pieces: [ScannedFurniture]) -> String {
+        var counts: [(ItemType, Int)] = []
+        for piece in pieces {
+            if let i = counts.firstIndex(where: { $0.0 == piece.type }) { counts[i].1 += 1 } else { counts.append((piece.type, 1)) }
+        }
+        let parts = counts.map { type, count in
+            let name = type.displayName.lowercased()
+            return count == 1 ? "1 \(name)" : "\(count) \(name == "shelf" ? "shelve" : name)s"
+        }
+        guard parts.count > 1 else { return parts.first ?? "" }
+        return parts.dropLast().joined(separator: ", ") + " and " + parts.last!
     }
 }
 
@@ -143,5 +187,26 @@ extension Room {
         refitFeatures()
         uncertainWalls = draft.uncertainWalls
         updatedAt = Date()
+    }
+
+    /// Adds furniture from a LiDAR scan as new items in this room, placed
+    /// where the scan saw them. Sizes stay "estimated" until the person
+    /// checks them. Returns the new items.
+    @discardableResult
+    func addScannedFurniture(_ pieces: [ScannedFurniture], context: ModelContext) -> [Item] {
+        guard !pieces.isEmpty else { return [] }
+        let current = chosenLayout
+        var placements = current?.placements ?? []
+        var added: [Item] = []
+        for piece in pieces {
+            let item = Item(type: piece.type, widthCm: piece.widthCm, depthCm: piece.depthCm,
+                            heightCm: piece.heightCm, isEstimated: true)
+            context.insert(item)
+            item.setRooms([self], anyRoom: false)
+            placements.append(ItemPlacement(itemID: item.uuid, x: piece.x, y: piece.y, rotation: piece.rotation))
+            added.append(item)
+        }
+        choose(placements, label: current?.label ?? "Current arrangement", score: current?.score ?? 0, context: context)
+        return added
     }
 }

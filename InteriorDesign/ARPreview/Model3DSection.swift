@@ -34,6 +34,8 @@ struct Model3DSection: View {
     var onNewModel: ((Data) -> Void)?
     /// True while the room view is open: the turning preview is taken
     /// down then, because two 3D views at once left the camera black.
+    /// (It's also taken down while the LiDAR scan is open, for the same
+    /// reason.)
     var isPaused = false
     let onSeeInRoom: () -> Void
 
@@ -55,7 +57,7 @@ struct Model3DSection: View {
 
                 if let modelData {
                     Group {
-                        if isPaused {
+                        if isPaused || showScan {
                             Theme.surfaceAlt
                         } else {
                             ModelPreview(data: modelData)

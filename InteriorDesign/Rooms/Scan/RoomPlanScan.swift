@@ -33,10 +33,22 @@ struct OpeningSegment: Equatable {
     var width: Double
 }
 
+/// A piece of furniture from RoomPlan, in meters. Its box's own x axis
+/// runs along the width, at `angle` in the floor plane.
+struct ObjectBox: Equatable {
+    var type: ItemType
+    var centerX: Double
+    var centerZ: Double
+    var width: Double
+    var depth: Double
+    var height: Double
+    var angle: Double
+}
+
 /// Turns RoomPlan's walls into our outline. Pure math, so it's tested
 /// without a LiDAR phone.
 enum RoomPlanConverter {
-    static func draft(walls: [WallSegment], openings: [OpeningSegment]) -> RoomDraft? {
+    static func draft(walls: [WallSegment], openings: [OpeningSegment], objects: [ObjectBox] = []) -> RoomDraft? {
         guard walls.count >= 3 else { return nil }
         // Walk around the room: sort walls by their direction from the middle.
         let midX = walls.map(\.centerX).reduce(0, +) / Double(walls.count)
@@ -69,7 +81,38 @@ enum RoomPlanConverter {
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: json) else { return nil }
         // The parser fixes the order, the origin, and checks for crossings.
-        return try? RoomDraftParser.parse(data)
+        guard var draft = try? RoomDraftParser.parse(data) else { return nil }
+        // The parser moved the outline so its top-left is 0,0 (and may have
+        // reversed the corner order, which doesn't move anything), so move
+        // the furniture the same way.
+        let shift = Point2D(x: corners.map(\.x).min()!, y: corners.map(\.y).min()!)
+        draft.furniture = furniture(objects, shift: shift, corners: draft.corners)
+        return draft
+    }
+
+    /// RoomPlan's furniture boxes as pieces on our plan. Each turn is
+    /// rounded to the nearest quarter turn, and of the two ways a piece
+    /// could face, we pick the one facing into the room (beds and sofas
+    /// usually back onto a wall).
+    static func furniture(_ objects: [ObjectBox], shift: Point2D, corners: [Point2D]) -> [ScannedFurniture] {
+        let middle = PolygonGeometry.centroid(corners)
+        return objects.compactMap { box in
+            guard [box.centerX, box.centerZ, box.width, box.depth, box.height, box.angle].allSatisfy(\.isFinite),
+                  box.width > 0.05, box.depth > 0.05 else { return nil }
+            let x = box.centerX * 100 - shift.x
+            let y = box.centerZ * 100 - shift.y
+            let quarter = Int((box.angle / (.pi / 2)).rounded())
+            let sideways = ((quarter % 2) + 2) % 2 == 1
+            let choices = sideways ? [90, 270] : [0, 180]
+            let toMiddle = Point2D(x: middle.x - x, y: middle.y - y)
+            func facing(_ rotation: Int) -> Double {
+                let front = Facing.front(rotation)
+                return front.x * toMiddle.x + front.y * toMiddle.y
+            }
+            let rotation = facing(choices[0]) >= facing(choices[1]) ? choices[0] : choices[1]
+            return ScannedFurniture(type: box.type, widthCm: box.width * 100, depthCm: box.depth * 100,
+                                    heightCm: max(box.height * 100, 1), x: x, y: y, rotation: rotation)
+        }
     }
 
     /// Where the two walls' lines cross, or nil if they're parallel.
@@ -134,6 +177,29 @@ final class RoomPlanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCodi
             let (x, z) = floorPosition(surface.transform)
             return OpeningSegment(kind: kind, centerX: x, centerZ: z, width: Double(surface.dimensions.x))
         }
-        return RoomPlanConverter.draft(walls: walls, openings: segments)
+        let objects = room.objects.compactMap { object -> ObjectBox? in
+            guard let type = itemType(object.category, heightMeters: Double(object.dimensions.y)) else { return nil }
+            let (x, z) = floorPosition(object.transform)
+            let axis = object.transform.columns.0
+            return ObjectBox(type: type, centerX: x, centerZ: z,
+                             width: Double(object.dimensions.x), depth: Double(object.dimensions.z),
+                             height: Double(object.dimensions.y), angle: atan2(Double(axis.z), Double(axis.x)))
+        }
+        return RoomPlanConverter.draft(walls: walls, openings: segments, objects: objects)
+    }
+
+    /// Our item type for what RoomPlan saw. Kitchen and bathroom fixtures
+    /// (fridge, oven, toilet, bathtub...) and TVs aren't furniture you
+    /// arrange, so they're skipped.
+    static func itemType(_ category: CapturedRoom.Object.Category, heightMeters: Double) -> ItemType? {
+        switch category {
+        case .bed: return .bed
+        case .sofa: return .sofa
+        case .chair: return .chair
+        case .table: return .table
+        // Tall storage is a bookcase or wardrobe; low storage a dresser.
+        case .storage: return heightMeters > 1.2 ? .shelf : .dresser
+        default: return nil
+        }
     }
 }

@@ -32,11 +32,17 @@ struct ShoppingPreferences: Sendable, Equatable {
 
 enum CatalogRanking {
     /// Keeps only products that match the query and fit the budget.
+    ///
+    /// A filter only hides a product when we *know* it doesn't match. The
+    /// live catalog often leaves fields blank (no style at all, no rating,
+    /// no material), and a blank means "unknown", not "no". The search
+    /// words sent to the catalog already ask for the filtered things, so
+    /// unknown products stay and simply rank lower.
     static func filter(_ products: [CatalogProduct], query: CatalogQuery, budget: ShoppingBudget) -> [CatalogProduct] {
         products.filter { p in
-            if let type = query.type, p.type != type { return false }
             // Products of unknown type stay: the search words already asked
             // for this kind of thing.
+            if let type = query.type, let pType = p.type, pType != type { return false }
             if let category = query.category, let type = p.type, type.category != category { return false }
             if !query.text.isEmpty {
                 let haystack = "\(p.name) \(p.retailer) \(p.materials.joined(separator: " "))".lowercased()
@@ -46,11 +52,10 @@ enum CatalogRanking {
             if let min = query.minPrice, p.price < min { return false }
             if let max = query.maxPrice, p.price > max { return false }
             if let cap = budget.limit(for: p.type), p.price > cap { return false }
-            // A minimum rating hides products with no rating at all.
-            if query.minRating > 0, (p.rating ?? 0) < query.minRating { return false }
-            if !query.materials.isEmpty, !matches(p.materials, query.materials) { return false }
-            if !query.styles.isEmpty, !matches(p.styles, query.styles) { return false }
-            if !query.colors.isEmpty, !matches(p.colors, query.colors) { return false }
+            if query.minRating > 0, let rating = p.rating, rating < query.minRating { return false }
+            if !query.materials.isEmpty, !p.materials.isEmpty, !matches(p.materials, query.materials) { return false }
+            if !query.styles.isEmpty, !p.styles.isEmpty, !matches(p.styles, query.styles) { return false }
+            if !query.colors.isEmpty, !p.colors.isEmpty, !matches(p.colors, query.colors) { return false }
             return true
         }
     }
@@ -96,10 +101,53 @@ enum CatalogRanking {
         return score
     }
 
-    /// True when the two lists share a word, ignoring case.
-    private static func matches(_ values: [String], _ wanted: Set<String>) -> Bool {
+    /// True when a product value matches one of the wanted options,
+    /// ignoring case. Catalog data is worded freely ("Solid Oak", "Light
+    /// Gray", "Polyester blend"), so a value matches when it contains the
+    /// option or one of its related words.
+    static func matches(_ values: [String], _ wanted: Set<String>) -> Bool {
         guard !wanted.isEmpty else { return false }
-        let lower = Set(wanted.map { $0.lowercased() })
-        return values.contains { lower.contains($0.lowercased()) }
+        let words = Set(wanted.flatMap { option -> [String] in
+            let key = option.lowercased()
+            return [key] + (relatedWords[key] ?? [])
+        })
+        return values.contains { value in
+            let v = value.lowercased()
+            // Single words match the start of a word, so "upholstered"
+            // counts as fabric but "cashmere" doesn't count as ash wood.
+            let valueWords = v.split { !$0.isLetter }
+            return words.contains { word in
+                word.contains(where: { !$0.isLetter })
+                    ? v.contains(word)
+                    : valueWords.contains { $0.hasPrefix(word) }
+            }
+        }
     }
+
+    /// Everyday words retailers use for each filter option.
+    static let relatedWords: [String: [String]] = [
+        // Materials
+        "wood": ["oak", "walnut", "pine", "acacia", "mango", "teak", "birch", "ash", "beech", "maple",
+                 "cherry", "bamboo", "plywood", "mdf", "veneer", "timber"],
+        "metal": ["steel", "iron", "aluminum", "aluminium", "brass", "chrome", "copper", "bronze"],
+        "fabric": ["polyester", "linen", "cotton", "velvet", "boucle", "bouclé", "chenille", "wool",
+                   "upholster", "textile", "microfiber", "tweed", "nylon"],
+        "leather": ["leatherette", "suede"],
+        "glass": ["mirror", "tempered"],
+        "rattan": ["wicker", "cane", "seagrass", "jute"],
+        // Colors
+        "grey": ["gray", "charcoal", "slate", "silver"],
+        "white": ["ivory", "cream", "off-white", "alabaster"],
+        "beige": ["cream", "tan", "taupe", "sand", "natural", "oatmeal", "khaki", "linen"],
+        "brown": ["walnut", "espresso", "chocolate", "coffee", "chestnut", "mahogany", "cognac", "caramel"],
+        "black": ["ebony", "onyx", "jet"],
+        "green": ["olive", "sage", "emerald", "forest"],
+        "blue": ["navy", "teal", "indigo", "cobalt", "denim"],
+        // Styles
+        "modern": ["contemporary", "mid-century", "mid century"],
+        "scandinavian": ["scandi", "nordic"],
+        "minimal": ["minimalist"],
+        "classic": ["traditional", "vintage"],
+        "warm": ["rustic", "farmhouse", "boho"],
+    ]
 }

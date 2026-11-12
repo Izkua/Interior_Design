@@ -33,6 +33,7 @@ struct RoomBuilderView: View {
         case room = "Room"
         case furniture = "Furniture"
         case walls = "Walls"
+        case smallDecor = "Small decor"
         var id: String { rawValue }
     }
 
@@ -56,12 +57,13 @@ struct RoomBuilderView: View {
             .padding(.bottom, Theme.Space.sm)
             .background(Theme.background)
             .zIndex(1)
-            .accessibilityLabel("Show the room's outline, its furniture, or the decor on its walls")
+            .accessibilityLabel("Show the room's outline, its furniture, the decor on its walls, or its small decor")
 
             switch page {
             case .room: roomPage
             case .furniture: RoomFurnitureView(room: room)
             case .walls: WallDecorView(room: room, initialWall: wallsPageWall)
+            case .smallDecor: SmallDecorRoomView(room: room)
             }
         }
         .background(Theme.background.ignoresSafeArea())
@@ -117,6 +119,7 @@ struct RoomBuilderView: View {
             ScanRoomView { draft in
                 recordForUndo()
                 room.apply(draft)
+                room.addScannedFurniture(draft.furniture, context: context)
                 selectedWall = nil
             }
         }
@@ -183,10 +186,10 @@ struct RoomBuilderView: View {
         }
     }
 
-    /// "Edit top wall", or "Edit Wall 3" for odd-shaped rooms.
+    /// "Edit top wall decor", or "Edit Wall 3 decor" for odd-shaped rooms.
     private func editWallTitle(_ wall: Int) -> String {
         let name = PlanGeometry.wallName(wall, cornerCount: room.corners.count)
-        return "Edit " + (name.hasPrefix("Wall") ? name : name.lowercased())
+        return "Edit " + (name.hasPrefix("Wall") ? name : name.lowercased()) + " decor"
     }
 
     // MARK: Basic or advanced

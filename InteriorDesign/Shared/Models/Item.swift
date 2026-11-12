@@ -20,6 +20,7 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
     case mirror
     case wallShelf
     case wallClock
+    case otherWallDecor
     // Small decor: sits on a desk, table, dresser, or shelf.
     case plant
     case vase
@@ -29,6 +30,7 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
     case deskStorage
     case tableClock
     case candle
+    case otherSmallDecor
 
     var id: String { rawValue }
 
@@ -59,6 +61,7 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .deskStorage: return "Desk storage"
         case .tableClock: return "Desk clock"
         case .candle: return "Candle"
+        case .otherWallDecor, .otherSmallDecor: return "Other"
         }
     }
 
@@ -89,6 +92,8 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .deskStorage: return "tray.2"
         case .tableClock: return "alarm"
         case .candle: return "flame"
+        case .otherWallDecor: return "square.dashed"
+        case .otherSmallDecor: return "cube"
         }
     }
 
@@ -120,6 +125,8 @@ enum ItemType: String, Codable, CaseIterable, Identifiable {
         case .deskStorage: return (30, 20, 15)
         case .tableClock: return (15, 8, 15)
         case .candle: return (10, 10, 12)
+        case .otherWallDecor: return (40, 5, 40)
+        case .otherSmallDecor: return (20, 20, 20)
         }
     }
 }

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import InteriorDesign
 
 final class RoomScanTests: XCTestCase {
@@ -153,5 +154,76 @@ final class RoomScanTests: XCTestCase {
 
     func testTooFewWallsIsNoDraft() {
         XCTAssertNil(RoomPlanConverter.draft(walls: [WallSegment(centerX: 0, centerZ: 0, length: 3, angle: 0)], openings: []))
+    }
+
+    // MARK: RoomPlan furniture
+
+    /// The same 4 m × 3 m room as above, centered on 0,0.
+    private var fourByThreeWalls: [WallSegment] {
+        [
+            WallSegment(centerX: 0, centerZ: -1.5, length: 4, angle: 0),
+            WallSegment(centerX: 2, centerZ: 0, length: 3, angle: .pi / 2),
+            WallSegment(centerX: 0, centerZ: 1.5, length: 4, angle: .pi),
+            WallSegment(centerX: -2, centerZ: 0, length: 3, angle: -.pi / 2),
+        ]
+    }
+
+    func testRoomPlanFurnitureMovesWithTheOutline() throws {
+        // A bed against the top wall (z = -1.5), running along it.
+        let bed = ObjectBox(type: .bed, centerX: 0, centerZ: -0.5, width: 1.6, depth: 2, height: 0.5, angle: 0)
+        let draft = try XCTUnwrap(RoomPlanConverter.draft(walls: fourByThreeWalls, openings: [], objects: [bed]))
+        let piece = try XCTUnwrap(draft.furniture.first)
+        // The outline now starts at 0,0, so the room's middle is 200,150.
+        XCTAssertEqual(piece.x, 200, accuracy: 0.5)
+        XCTAssertEqual(piece.y, 100, accuracy: 0.5)
+        XCTAssertEqual(piece.widthCm, 160, accuracy: 0.01)
+        XCTAssertEqual(piece.depthCm, 200, accuracy: 0.01)
+        // Faces into the room (down, toward the middle).
+        XCTAssertEqual(piece.rotation, 0)
+    }
+
+    func testRoomPlanFurnitureTurnsAndFacesTheMiddle() {
+        let corners = [Point2D(x: 0, y: 0), Point2D(x: 400, y: 0), Point2D(x: 400, y: 300), Point2D(x: 0, y: 300)]
+        // A sofa along the right wall, turned a little off square.
+        let sofa = ObjectBox(type: .sofa, centerX: 3.5, centerZ: 1.5, width: 2, depth: 0.9, height: 0.85, angle: .pi / 2 + 0.1)
+        let pieces = RoomPlanConverter.furniture([sofa], shift: Point2D(x: 0, y: 0), corners: corners)
+        XCTAssertEqual(pieces.count, 1)
+        // Turned sideways, front pointing left toward the middle.
+        XCTAssertEqual(pieces[0].rotation, 90)
+        XCTAssertEqual(pieces[0].footprint.width, 90, accuracy: 0.01)
+        XCTAssertEqual(pieces[0].footprint.depth, 200, accuracy: 0.01)
+    }
+
+    func testRoomPlanSkipsBrokenBoxes() {
+        let corners = [Point2D(x: 0, y: 0), Point2D(x: 400, y: 0), Point2D(x: 400, y: 300), Point2D(x: 0, y: 300)]
+        let flat = ObjectBox(type: .table, centerX: 1, centerZ: 1, width: 0, depth: 0.8, height: 0.75, angle: 0)
+        let broken = ObjectBox(type: .chair, centerX: .nan, centerZ: 1, width: 0.5, depth: 0.5, height: 0.9, angle: 0)
+        XCTAssertTrue(RoomPlanConverter.furniture([flat, broken], shift: Point2D(x: 0, y: 0), corners: corners).isEmpty)
+    }
+
+    func testScannedFurnitureSummary() {
+        func piece(_ type: ItemType) -> ScannedFurniture {
+            ScannedFurniture(type: type, widthCm: 50, depthCm: 50, heightCm: 50, x: 0, y: 0, rotation: 0)
+        }
+        XCTAssertEqual(ScannedFurniture.summary([piece(.bed)]), "1 bed")
+        XCTAssertEqual(ScannedFurniture.summary([piece(.chair), piece(.bed), piece(.chair), piece(.shelf), piece(.shelf)]),
+                       "2 chairs, 1 bed and 2 shelves")
+    }
+
+    @MainActor
+    func testAddingScannedFurniturePlacesItInTheRoom() throws {
+        let container = try ModelContainer(for: Room.self, Item.self, RoomLayout.self, Preferences.self, Product.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let room = Room(name: "Bedroom", width: 400, length: 300)
+        context.insert(room)
+        let bed = ScannedFurniture(type: .bed, widthCm: 160, depthCm: 200, heightCm: 50, x: 200, y: 100, rotation: 0)
+        let added = room.addScannedFurniture([bed], context: context)
+        XCTAssertEqual(added.count, 1)
+        XCTAssertTrue(added[0].isEstimated)
+        XCTAssertTrue(added[0].belongs(to: room))
+        let spot = try XCTUnwrap(room.chosenLayout?.placements.first { $0.itemID == added[0].uuid })
+        XCTAssertEqual(spot.x, 200)
+        XCTAssertEqual(spot.y, 100)
     }
 }

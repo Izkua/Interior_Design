@@ -42,6 +42,13 @@ struct ItemTypePicker: View {
         .onChange(of: selection) { _, new in
             if let new, new.category != category { category = new.category }
         }
+        // Switching the kind picks its first type right away, so the
+        // change is saved even if no chip is tapped after.
+        .onChange(of: category) { _, kind in
+            guard !allowsAny, selection?.category != kind, let first = kind.types.first else { return }
+            selection = first
+            onPick(first)
+        }
     }
 }
 

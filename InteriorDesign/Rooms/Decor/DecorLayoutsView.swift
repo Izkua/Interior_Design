@@ -12,7 +12,7 @@ enum LayoutKind: String, CaseIterable, Identifiable {
 /// Where the room's furniture stands, for working out what's against each
 /// wall and what has a top: the chosen layout, else the top suggestion.
 /// Can take a moment, so it runs off the main thread.
-private func placedFurniture(_ room: Room) async -> [PlacedItem] {
+func placedFurniture(_ room: Room) async -> [PlacedItem] {
     let items = room.layoutItems
     if room.chosenLayout != nil { return RoomFurniture.placed(items) }
     guard !items.isEmpty else { return [] }
@@ -36,6 +36,8 @@ struct WallDecorLayoutsView: View {
     @State private var suggestions: [WallDecorSuggestion] = []
     @State private var walls: [PlannerWall] = []
     @State private var isWorking = true
+    @State private var photos: [UUID: UIImage] = [:]
+    @State private var start = 0
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -51,7 +53,8 @@ struct WallDecorLayoutsView: View {
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                ForEach(suggestions) { suggestion in
+                MoreIdeasButton(count: suggestions.count, start: $start)
+                ForEach(IdeaPage.window(suggestions, start: start)) { suggestion in
                     card(suggestion)
                 }
             }
@@ -113,6 +116,7 @@ struct WallDecorLayoutsView: View {
                                 wall: index,
                                 unit: unit,
                                 selectedID: .constant(nil),
+                                photos: photos,
                                 onMove: { _ in }
                             )
                             .frame(height: 190)
@@ -143,6 +147,14 @@ struct WallDecorLayoutsView: View {
             item.refreshColor()
             if let color = item.mainColor { colors[item.uuid] = color }
         }
+        // Colors the person picked (or read from a poster) come first.
+        for piece in pieces {
+            if let color = piece.mainColor {
+                colors[piece.id] = color
+                if let itemID = piece.itemID { colors[itemID] = color }
+            }
+        }
+        photos = room.decorPhotos()
         walls = plannerWalls
         suggestions = WallDecorPlanner.suggest(walls: plannerWalls, pieces: pieces, ceiling: room.ceilingHeightCm, colors: colors)
         isWorking = false
@@ -159,6 +171,7 @@ struct SmallDecorLayoutsView: View {
 
     @Environment(\.modelContext) private var context
     @State private var suggestions: [SmallDecorSuggestion] = []
+    @State private var start = 0
 
     var body: some View {
         let pieces = room.items(in: .smallDecor)
@@ -177,7 +190,8 @@ struct SmallDecorLayoutsView: View {
                     action: false
                 )
             } else {
-                ForEach(suggestions) { card($0, surfaces: surfaces) }
+                MoreIdeasButton(count: suggestions.count, start: $start)
+                ForEach(IdeaPage.window(suggestions, start: start)) { card($0, surfaces: surfaces) }
             }
         }
         .task(id: room.decorSignature) {
@@ -295,5 +309,42 @@ struct SurfaceSketch: View {
                 .foregroundStyle(Theme.textSecondary)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - More ideas
+
+/// Shows decor ideas three at a time.
+enum IdeaPage {
+    static let size = 3
+
+    static func window<T>(_ all: [T], start: Int) -> [T] {
+        guard !all.isEmpty else { return [] }
+        let first = start % all.count
+        return (0..<min(size, all.count)).map { all[(first + $0) % all.count] }
+    }
+}
+
+/// "More ideas": shows the next few. Hidden when there are no more.
+struct MoreIdeasButton: View {
+    let count: Int
+    @Binding var start: Int
+
+    var body: some View {
+        if count > IdeaPage.size {
+            HStack {
+                Text("Ideas \(start % count + 1)–\(min(start % count + IdeaPage.size, count)) of \(count)")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer()
+                Button {
+                    withAnimation(.snappy) { start = (start + IdeaPage.size) % count }
+                } label: {
+                    Label("More ideas", systemImage: "shuffle")
+                        .font(Typography.subheadline)
+                        .frame(minHeight: Theme.minTap)
+                }
+            }
+        }
     }
 }

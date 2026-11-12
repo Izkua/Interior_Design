@@ -21,6 +21,11 @@ struct HomeView: View {
     /// A room just made with "New room", opened in the builder right away.
     @State private var newRoom: Room?
 
+    /// The room waiting on a rename or delete answer, if any.
+    @State private var roomToRename: Room?
+    @State private var roomToDelete: Room?
+    @State private var draftName = ""
+
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
     var body: some View {
@@ -52,18 +57,36 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { ProfileButton() }
             }
+            .alert("Rename room", isPresented: renameIsPresented) {
+                TextField("Room name", text: $draftName)
+                Button("Save") {
+                    roomToRename?.rename(draftName)
+                    try? context.save()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog(
+                "Delete \(roomToDelete?.name ?? "this room")?",
+                isPresented: deleteIsPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Delete room", role: .destructive) {
+                    if let room = roomToDelete { delete(room) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your items stay in Current Items.")
+            }
         }
     }
 
     private var roomList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
-                // "Manage" opens the full list, where rooms can be renamed
-                // or deleted.
-                SectionHeader(title: "Your rooms", actionTitle: "Manage") {
-                    path.append(.rooms)
-                }
+                SectionHeader(title: "Your rooms")
 
+                // Each room opens the builder when tapped. Its "•••" button
+                // (or a long press) renames or deletes it, right here.
                 ForEach(rooms) { room in
                     NavigationLink {
                         RoomBuilderView(room: room)
@@ -71,12 +94,56 @@ struct HomeView: View {
                         RoomButton(room: room, unit: unit, isLatest: room.id == rooms.first?.id)
                     }
                     .buttonStyle(PressableStyle())
+                    .contextMenu { roomActions(for: room) }
+                    .overlay(alignment: .trailing) {
+                        Menu {
+                            roomActions(for: room)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.textSecondary)
+                                .frame(width: Theme.minTap, height: Theme.minTap)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("More options for \(room.name)")
+                        .padding(.trailing, Theme.Space.xs)
+                    }
                 }
 
                 NewRoomButton(action: addRoom)
             }
             .padding(Theme.Space.md)
         }
+    }
+
+    /// Rename and Delete, shared by the "•••" menu and the long-press menu.
+    @ViewBuilder
+    private func roomActions(for room: Room) -> some View {
+        Button {
+            draftName = room.name
+            roomToRename = room
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+        Button(role: .destructive) {
+            roomToDelete = room
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    private var renameIsPresented: Binding<Bool> {
+        Binding(get: { roomToRename != nil }, set: { if !$0 { roomToRename = nil } })
+    }
+
+    private var deleteIsPresented: Binding<Bool> {
+        Binding(get: { roomToDelete != nil }, set: { if !$0 { roomToDelete = nil } })
+    }
+
+    private func delete(_ room: Room) {
+        context.delete(room)
+        try? context.save()
+        roomToDelete = nil
     }
 
     private func addRoom() {
@@ -120,9 +187,9 @@ private struct RoomButton: View {
 
                 Spacer(minLength: 0)
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
+                // Room for the "•••" button HomeView lays on top.
+                Color.clear
+                    .frame(width: Theme.minTap, height: Theme.minTap)
                     .accessibilityHidden(true)
             }
         }

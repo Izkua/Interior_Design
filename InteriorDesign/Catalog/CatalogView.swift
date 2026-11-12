@@ -17,6 +17,8 @@ struct CatalogView: View {
     @AppStorage(SettingsKey.matchRoomColors) private var matchRoomColors = true
     /// The room's colors and mood, worked out from its items' photos.
     @State private var vibe: RoomVibe?
+    /// The Recommended section is closed until tapped.
+    @State private var showRecommended = false
 
     @State private var store = CatalogStore()
     @State private var query = CatalogQuery()
@@ -69,12 +71,12 @@ struct CatalogView: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
 
-                    if !store.gaps.isEmpty {
-                        gapsSection
-                    }
-
                     if let vibe {
                         vibeCard(vibe)
+                    }
+
+                    if !store.gaps.isEmpty {
+                        recommendedSection
                     }
 
                     searchBar
@@ -259,6 +261,43 @@ struct CatalogView: View {
     }
 
     // MARK: Fill the gaps
+
+    /// "Recommended": tap to open the suggestions (fill the gaps), tap
+    /// again to close them. Stays on this page.
+    private var recommendedSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.sm) {
+            Button {
+                withAnimation(.snappy) { showRecommended.toggle() }
+            } label: {
+                HStack {
+                    Label("Recommended", systemImage: "sparkles")
+                        .font(Typography.headline)
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("\(store.gaps.count)")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(Theme.surfaceAlt, in: Capsule())
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .rotationEffect(.degrees(showRecommended ? 180 : 0))
+                }
+                .frame(minHeight: Theme.minTap)
+                .padding(.horizontal, Theme.Space.md)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(showRecommended ? "Hides the suggestions" : "Shows suggestions for this room")
+
+            if showRecommended {
+                gapsSection
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
 
     private var gapsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Space.sm) {

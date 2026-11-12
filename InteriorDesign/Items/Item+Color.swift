@@ -28,12 +28,22 @@ extension Room {
     /// pieces count more. Nil when no piece has a photo yet.
     @MainActor
     func vibe() -> RoomVibe? {
-        let colors: [(color: RGB, weight: Double)] = allItems.compactMap { item in
+        let hungWithColor = Set(wallDecor.filter { !$0.colors.isEmpty }.compactMap(\.itemID))
+        var colors: [(color: RGB, weight: Double)] = allItems.compactMap { item in
+            // Picked colors win over the photo guess for hung pieces.
+            guard !hungWithColor.contains(item.uuid) else { return nil }
             item.refreshColor()
             guard let color = item.mainColor else { return nil }
             // What you see of it: the front, or the top for a rug.
             let area = item.type == .rug ? item.widthCm * item.depthCm : item.widthCm * item.heightCm
             return (color, max(area, 100))
+        }
+        for piece in wallDecor {
+            for (i, hex) in piece.colors.enumerated() {
+                guard let color = RGB(hex: hex) else { continue }
+                // The first color counts most.
+                colors.append((color, piece.widthCm * piece.heightCm / Double(i + 1)))
+            }
         }
         return RoomVibe.from(colors)
     }

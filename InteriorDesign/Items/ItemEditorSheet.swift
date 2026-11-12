@@ -140,12 +140,7 @@ struct ItemEditorSheet: View {
 
     /// A LiDAR scan is true to size, so it also measures the piece.
     private func useScan(_ data: Data) {
-        guard let size = ARPlaceController.modelSize(data) else { return }
-        let target = simd_float3(Float(draft.widthCm), Float(draft.heightCm), Float(draft.depthCm)) / 100
-        let turned = ModelFit.fit(extents: size, target: target).turned
-        draft.widthCm = Double((turned ? size.z : size.x) * 100).rounded()
-        draft.depthCm = Double((turned ? size.x : size.z) * 100).rounded()
-        draft.heightCm = Double(size.y * 100).rounded()
+        draft.useScannedSize(data)
     }
 
     // MARK: Photo
@@ -353,5 +348,21 @@ enum PhotoResizer {
             image.draw(in: CGRect(origin: .zero, size: size))
         }
         return resized.jpegData(compressionQuality: quality)
+    }
+}
+
+extension ItemDraft {
+    /// A LiDAR scan is true to size, so it also measures the piece. Width
+    /// and depth follow whichever way round matches the current guess.
+    /// Returns false if the model's size couldn't be read.
+    @MainActor @discardableResult
+    mutating func useScannedSize(_ data: Data) -> Bool {
+        guard let size = ARPlaceController.modelSize(data) else { return false }
+        let target = simd_float3(Float(widthCm), Float(heightCm), Float(depthCm)) / 100
+        let turned = ModelFit.fit(extents: size, target: target).turned
+        widthCm = Double((turned ? size.z : size.x) * 100).rounded()
+        depthCm = Double((turned ? size.x : size.z) * 100).rounded()
+        heightCm = Double(size.y * 100).rounded()
+        return true
     }
 }

@@ -5,6 +5,7 @@ import SwiftData
 /// tap one to see what moves and to adjust it by hand.
 struct RecommendedLayoutsView: View {
     @Query(sort: \Room.updatedAt, order: .reverse) private var rooms: [Room]
+    @Environment(\.modelContext) private var context
 
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
@@ -140,6 +141,14 @@ struct RecommendedLayoutsView: View {
                 }
 
                 if suggestions.indices.contains(page), !suggestions[page].placements.isEmpty {
+                    let current = isCurrent(room.layoutItems, suggestions[page])
+                    PrimaryButton(title: current ? "Your current layout" : "Use this layout",
+                                  systemImage: current ? "checkmark" : "square.and.arrow.down",
+                                  style: current ? .tinted : .filled) {
+                        let suggestion = suggestions[page]
+                        room.choose(suggestion.placements, label: suggestion.label, score: suggestion.score, context: context)
+                    }
+                    .disabled(current)
                     VisualizeButton(room: room, placements: suggestions[page].placements, items: room.layoutItems)
                 }
             }
