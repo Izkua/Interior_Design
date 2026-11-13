@@ -111,6 +111,7 @@ struct ARRoomTraceView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: Theme.Space.sm) {
+                topBar
                 Text(instruction)
                     .font(Typography.headline)
                     .foregroundStyle(.white)
@@ -119,7 +120,6 @@ struct ARRoomTraceView: View {
                     .padding(12)
                     .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: Theme.Radius.card))
                     .padding(.horizontal, Theme.Space.md)
-                    .padding(.top, Theme.Space.sm)
                 if !closed && marking == nil {
                     Toggle(isOn: $squareCorners) {
                         Text("Snap to right angles")
@@ -185,6 +185,42 @@ struct ARRoomTraceView: View {
         case 1, 2: return "Go around the room: put the dot in the next corner and tap Add corner."
         default: return "Next corner, or aim back at the first corner (or tap Close room) to finish."
         }
+    }
+
+    /// Cancel and Done are always on screen, so the person can stop at
+    /// any point. Done needs three corners to make a room.
+    private var topBar: some View {
+        HStack {
+            Button("Cancel") { dismiss() }
+                .font(Typography.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .frame(minHeight: Theme.minTap)
+                .background(.black.opacity(0.55), in: Capsule())
+            Spacer()
+            Button("Done") { finishNow() }
+                .font(Typography.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .frame(minHeight: Theme.minTap)
+                .background(Theme.accent.opacity(canFinish ? 1 : 0.4), in: Capsule())
+                .disabled(!canFinish)
+                .accessibilityHint(canFinish ? "Closes the outline and uses it" : "Add at least three corners first")
+        }
+        .padding(.horizontal, Theme.Space.md)
+        .padding(.top, Theme.Space.sm)
+    }
+
+    private var canFinish: Bool { corners.count >= 3 }
+
+    /// Done from anywhere: drops a half-marked door or window, closes the
+    /// outline if needed, and uses it.
+    private func finishNow() {
+        marking = nil
+        firstEdge = nil
+        model.setStart(nil)
+        if !closed { close() }
+        if closed { finish() }
     }
 
     @ViewBuilder

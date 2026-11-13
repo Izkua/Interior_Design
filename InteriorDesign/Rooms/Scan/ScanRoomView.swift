@@ -23,6 +23,9 @@ struct ScanRoomView: View {
     @State private var showCamera = false
     @State private var selection: PhotosPickerItem?
     @State private var showTrace = false
+    @State private var lidarControl = RoomPlanScanControl()
+    /// Done was tapped; RoomPlan is building the room.
+    @State private var lidarFinishing = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
 
@@ -51,7 +54,8 @@ struct ScanRoomView: View {
                 case .capture: capture
                 case .review: review
                 case .lidar:
-                    RoomPlanScanView { result in
+                    RoomPlanScanView(control: lidarControl) { result in
+                        lidarFinishing = false
                         if let result {
                             draft = result
                             stage = .review
@@ -68,7 +72,23 @@ struct ScanRoomView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { Tag(text: "Beta") }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if stage == .lidar {
+                        // Stop whenever enough of the room is covered.
+                        if lidarFinishing {
+                            ProgressView()
+                        } else {
+                            Button("Done") {
+                                lidarFinishing = true
+                                lidarControl.finish()
+                            }
+                            .fontWeight(.semibold)
+                            .accessibilityHint("Stops scanning and builds the room from what's been seen so far")
+                        }
+                    } else {
+                        Tag(text: "Beta")
+                    }
+                }
             }
         }
         // Full screen, so dragging around the room can't pull a sheet down.
@@ -107,7 +127,7 @@ struct ScanRoomView: View {
 
                 if RoomPlanScan.isAvailable {
                     PrimaryButton(title: "Scan with LiDAR", systemImage: "camera.metering.matrix") { stage = .lidar }
-                    Text("Your iPhone can measure the room directly. Walk slowly around the edges.")
+                    Text("Your iPhone can measure the room directly. Walk slowly around the edges, then tap Done at the top.")
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -141,7 +161,7 @@ struct ScanRoomView: View {
                                 .font(Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("For now, draw your room: pick Basic for a rectangle, or Advanced to tap in corners and type each wall's length. It takes a minute or two with a tape measure.")
+                            Text("For now, draw your room: tap in its corners and type each wall's length. It takes a minute or two with a tape measure.")
                                 .font(Typography.body)
                                 .foregroundStyle(Theme.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)

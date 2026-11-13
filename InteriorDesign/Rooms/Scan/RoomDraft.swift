@@ -77,6 +77,53 @@ struct ScannedFurniture: Equatable, Sendable {
         rotation % 180 == 0 ? (widthCm, depthCm) : (depthCm, widthCm)
     }
 
+    /// The pieces nudged toward the room's middle (up to 40 cm) until
+    /// their footprint is inside the walls. A scanned box often reaches a
+    /// few centimeters into the wall it stands against.
+    static func keptInside(_ pieces: [ScannedFurniture], corners: [Point2D]) -> [ScannedFurniture] {
+        guard corners.count >= 3 else { return pieces }
+        let middle = PolygonGeometry.centroid(corners)
+        return pieces.map { piece in
+            let distance = hypot(middle.x - piece.x, middle.y - piece.y)
+            guard distance > 0.5 else { return piece }
+            let step = (x: (middle.x - piece.x) / distance, y: (middle.y - piece.y) / distance)
+            for cm in stride(from: 0.0, through: min(40, distance), by: 1) {
+                var moved = piece
+                moved.x += step.x * cm
+                moved.y += step.y * cm
+                if moved.isInside(corners) { return moved }
+            }
+            return piece
+        }
+    }
+
+    /// True when all four corners of the footprint are inside the outline.
+    func isInside(_ corners: [Point2D]) -> Bool {
+        let (w, d) = footprint
+        let box = [(-1.0, -1.0), (1, -1), (1, 1), (-1, 1)].map { Point2D(x: x + $0.0 * w / 2, y: y + $0.1 * d / 2) }
+        return box.allSatisfy { Self.point($0, isInside: corners) }
+    }
+
+    /// Even-odd ray test; points on a wall count as inside.
+    private static func point(_ p: Point2D, isInside corners: [Point2D]) -> Bool {
+        var inside = false
+        var j = corners.count - 1
+        for i in corners.indices {
+            let a = corners[i], b = corners[j]
+            // On this wall (within half a centimeter)?
+            let length = hypot(b.x - a.x, b.y - a.y)
+            if length > 0 {
+                let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (length * length)
+                if t >= 0, t <= 1, hypot(a.x + t * (b.x - a.x) - p.x, a.y + t * (b.y - a.y) - p.y) < 0.5 { return true }
+            }
+            if (a.y > p.y) != (b.y > p.y), p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
+                inside.toggle()
+            }
+            j = i
+        }
+        return inside
+    }
+
     /// "1 bed, 2 chairs and a table" style summary for the review screen.
     static func summary(_ pieces: [ScannedFurniture]) -> String {
         var counts: [(ItemType, Int)] = []

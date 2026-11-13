@@ -182,6 +182,53 @@ final class RoomScanTests: XCTestCase {
         XCTAssertEqual(piece.rotation, 0)
     }
 
+    func testTiltedScanIsTurnedSquareWithFurnitureAgainstItsWall() throws {
+        // The same 4 m × 3 m room, but the phone started the scan turned
+        // 30°, so RoomPlan reports every wall and object tilted.
+        let tilt = 30.0 * .pi / 180
+        let walls = fourByThreeWalls.map { $0.turned(by: tilt) }
+        // A 1 m × 0.5 m dresser with its back on the right wall (x = 2).
+        let dresser = ObjectBox(type: .dresser, centerX: 1.75, centerZ: 0, width: 1, depth: 0.5, height: 0.8, angle: .pi / 2)
+            .turned(by: tilt)
+        let draft = try XCTUnwrap(RoomPlanConverter.draft(walls: walls, openings: [], objects: [dresser]))
+        // The outline comes back square to the screen.
+        let xs = Set(draft.corners.map { ($0.x / 1).rounded() }), ys = Set(draft.corners.map { ($0.y / 1).rounded() })
+        XCTAssertEqual(xs.count, 2)
+        XCTAssertEqual(ys.count, 2)
+        let width = xs.max()! - xs.min()!, height = ys.max()! - ys.min()!
+        XCTAssertEqual(Set([width, height]), [400, 300])
+        // The dresser sits inside the room, against one wall, facing in.
+        let piece = try XCTUnwrap(draft.furniture.first)
+        XCTAssertTrue(piece.isInside(draft.corners))
+        let box = piece.footprint
+        let gaps = [piece.x - box.width / 2, width - piece.x - box.width / 2, piece.y - box.depth / 2, height - piece.y - box.depth / 2]
+        XCTAssertEqual(gaps.min()!, 0, accuracy: 1)
+        XCTAssertEqual(min(box.width, box.depth), 50, accuracy: 0.01)
+    }
+
+    func testScannedFurnitureIsNudgedOffTheWall() {
+        let corners = [Point2D(x: 0, y: 0), Point2D(x: 400, y: 0), Point2D(x: 400, y: 300), Point2D(x: 0, y: 300)]
+        // Reaches 5 cm into the top wall.
+        let chair = ScannedFurniture(type: .chair, widthCm: 50, depthCm: 50, heightCm: 90, x: 200, y: 20, rotation: 0)
+        let kept = ScannedFurniture.keptInside([chair], corners: corners)[0]
+        XCTAssertTrue(kept.isInside(corners))
+        XCTAssertEqual(kept.y, 25, accuracy: 1.5)
+    }
+
+    func testStraighteningMovesFurnitureWithTheOutline() throws {
+        // A slightly crooked room whose top-left corner moves when straightened.
+        let corners = [Point2D(x: 0, y: 6), Point2D(x: 400, y: 0), Point2D(x: 404, y: 300), Point2D(x: 2, y: 303)]
+        let bed = ScannedFurniture(type: .bed, widthCm: 160, depthCm: 200, heightCm: 50, x: 200, y: 150, rotation: 0)
+        let draft = RoomDraft(corners: corners, walls: corners.map { _ in .init(seen: true, confidence: 0.9) },
+                              features: [], closed: true, furniture: [bed])
+        let straight = try XCTUnwrap(RoomStraightener.straightened(draft))
+        let piece = try XCTUnwrap(straight.furniture.first)
+        let middleBefore = PolygonGeometry.centroid(corners), middleAfter = PolygonGeometry.centroid(straight.corners)
+        // Still in the middle of the room.
+        XCTAssertEqual(piece.x - middleAfter.x, bed.x - middleBefore.x, accuracy: 5)
+        XCTAssertEqual(piece.y - middleAfter.y, bed.y - middleBefore.y, accuracy: 5)
+    }
+
     func testRoomPlanFurnitureTurnsAndFacesTheMiddle() {
         let corners = [Point2D(x: 0, y: 0), Point2D(x: 400, y: 0), Point2D(x: 400, y: 300), Point2D(x: 0, y: 300)]
         // A sofa along the right wall, turned a little off square.

@@ -6,8 +6,7 @@ An iPhone app for measuring your room, tracking what you own, and (later) planni
 
 - Tabs: Home, Current Items, Layouts, Catalog
 - Profile button (top right) opening a guest sheet; sign-in is not wired up yet
-- Room builder, Basic: rectangle or square, width/length in feet/inches or metric, a to-scale plan with wall lengths, draggable doors, windows, and outlets, rename/delete, multiple rooms
-- Room builder, Advanced: any shape on a grid. Tap to add a corner, drag to move, long-press to delete; live wall lengths and angles; "Lock angles" snaps to 30/45/60/90° (and 120–180°); undo/redo; tap a wall to type its measured length, with a warning that names the wall that doesn't fit when measurements disagree
+- Room builder: any shape on a grid, drawn to scale with draggable doors, windows, and outlets, rename/delete, multiple rooms (Basic rectangle mode was removed; new rooms start as a 4 × 5 m rectangle you can reshape). Tap to add a corner, drag to move, long-press to delete; live wall lengths and angles; "Lock angles" snaps to 30/45/60/90° (and 120–180°); undo/redo; tap a wall to type its measured length, with a warning that names the wall that doesn't fit when measurements disagree
 - Items: add, edit, and delete furniture by hand (type, size, photo, notes, fixed or movable, room)
 - Recommended Layouts: a rule-based layout engine (on the phone, offline, same answer every time) suggests 3–5 different arrangements with labels like "Seating faces the TV"; drag or turn items to adjust (with warnings if a door or path gets blocked), see what stays, moves, or is missing, and save one as the room's layout
 - Catalog: budget (total and per item), filters, "Fill the gaps" for a room, product grid with a fit check against the room's free space, product page with retailer link and commission disclosure, wishlist, and "preview in room". Uses sample placeholder products until the live catalog is deployed

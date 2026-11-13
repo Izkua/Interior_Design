@@ -80,8 +80,8 @@ enum RoomStraightener {
     }
 
     /// The same for a whole scan draft: doors and windows keep their place
-    /// along their wall (in proportion), and the outline is moved back so
-    /// its top-left corner is at 0,0.
+    /// along their wall (in proportion), the outline is moved back so its
+    /// top-left corner is at 0,0, and scanned furniture moves with it.
     static func straightened(_ draft: RoomDraft, allow45: Bool = true) -> RoomDraft? {
         guard let corners = straightened(draft.corners, allow45: allow45) else { return nil }
         let minX = corners.map(\.x).min() ?? 0, minY = corners.map(\.y).min() ?? 0
@@ -94,6 +94,13 @@ enum RoomStraightener {
             if old > 0 { moved.offsetCm = f.offsetCm * new / old }
             return moved
         }
+        // Furniture moves with the outline's new top-left corner.
+        result.furniture = ScannedFurniture.keptInside(draft.furniture.map { piece in
+            var moved = piece
+            moved.x -= minX
+            moved.y -= minY
+            return moved
+        }, corners: result.corners)
         return result
     }
 }

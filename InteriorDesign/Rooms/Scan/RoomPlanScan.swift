@@ -45,11 +45,47 @@ struct ObjectBox: Equatable {
     var angle: Double
 }
 
+/// Turning a point on the floor around the scan's origin.
+private func turn(_ x: Double, _ z: Double, by angle: Double) -> (Double, Double) {
+    let c = cos(angle), s = sin(angle)
+    return (x * c - z * s, x * s + z * c)
+}
+
+extension WallSegment {
+    func turned(by angle: Double) -> WallSegment {
+        let (x, z) = turn(centerX, centerZ, by: angle)
+        return WallSegment(centerX: x, centerZ: z, length: length, angle: self.angle + angle)
+    }
+}
+
+extension OpeningSegment {
+    func turned(by angle: Double) -> OpeningSegment {
+        let (x, z) = turn(centerX, centerZ, by: angle)
+        return OpeningSegment(kind: kind, centerX: x, centerZ: z, width: width)
+    }
+}
+
+extension ObjectBox {
+    func turned(by angle: Double) -> ObjectBox {
+        let (x, z) = turn(centerX, centerZ, by: angle)
+        return ObjectBox(type: type, centerX: x, centerZ: z, width: width, depth: depth, height: height, angle: self.angle + angle)
+    }
+}
+
 /// Turns RoomPlan's walls into our outline. Pure math, so it's tested
 /// without a LiDAR phone.
 enum RoomPlanConverter {
-    static func draft(walls: [WallSegment], openings: [OpeningSegment], objects: [ObjectBox] = []) -> RoomDraft? {
-        guard walls.count >= 3 else { return nil }
+    static func draft(walls rawWalls: [WallSegment], openings rawOpenings: [OpeningSegment], objects rawObjects: [ObjectBox] = []) -> RoomDraft? {
+        guard rawWalls.count >= 3 else { return nil }
+        // RoomPlan's axes point wherever the phone faced when the scan
+        // started, so the room usually comes back tilted. Turn everything
+        // so the walls run straight across and down the plan; otherwise
+        // furniture (which only turns in quarter turns here) ends up
+        // square to the screen but crooked to the walls, poking through them.
+        let tilt = dominantAngle(rawWalls)
+        let walls = rawWalls.map { $0.turned(by: -tilt) }
+        let openings = rawOpenings.map { $0.turned(by: -tilt) }
+        let objects = rawObjects.map { $0.turned(by: -tilt) }
         // Walk around the room: sort walls by their direction from the middle.
         let midX = walls.map(\.centerX).reduce(0, +) / Double(walls.count)
         let midZ = walls.map(\.centerZ).reduce(0, +) / Double(walls.count)
@@ -86,8 +122,21 @@ enum RoomPlanConverter {
         // reversed the corner order, which doesn't move anything), so move
         // the furniture the same way.
         let shift = Point2D(x: corners.map(\.x).min()!, y: corners.map(\.y).min()!)
-        draft.furniture = furniture(objects, shift: shift, corners: draft.corners)
+        draft.furniture = ScannedFurniture.keptInside(furniture(objects, shift: shift, corners: draft.corners), corners: draft.corners)
         return draft
+    }
+
+    /// The direction most walls run, folded into a quarter turn (radians,
+    /// −45° to 45°). Longer walls count more. Angles are multiplied by four
+    /// so walls at right angles to each other agree before averaging.
+    static func dominantAngle(_ walls: [WallSegment]) -> Double {
+        var sx = 0.0, sy = 0.0
+        for wall in walls where wall.length.isFinite && wall.angle.isFinite {
+            sx += wall.length * cos(4 * wall.angle)
+            sy += wall.length * sin(4 * wall.angle)
+        }
+        guard abs(sx) + abs(sy) > 1e-9 else { return 0 }
+        return atan2(sy, sx) / 4
     }
 
     /// RoomPlan's furniture boxes as pieces on our plan. Each turn is
@@ -125,8 +174,21 @@ enum RoomPlanConverter {
     }
 }
 
+/// Lets a Done button outside the scan view stop the scan.
+@MainActor
+final class RoomPlanScanControl {
+    weak var view: RoomCaptureView?
+
+    /// Stops capturing. RoomPlan then builds the room from what it saw so
+    /// far and calls back with the result.
+    func finish() {
+        view?.captureSession.stop()
+    }
+}
+
 /// The RoomPlan scanning screen. Calls back with a draft when finished.
 struct RoomPlanScanView: UIViewRepresentable {
+    var control: RoomPlanScanControl? = nil
     let onFinish: (RoomDraft?) -> Void
 
     func makeUIView(context: Context) -> RoomCaptureView {
@@ -134,6 +196,7 @@ struct RoomPlanScanView: UIViewRepresentable {
         view.delegate = context.coordinator
         view.captureSession.run(configuration: RoomCaptureSession.Configuration())
         context.coordinator.view = view
+        control?.view = view
         return view
     }
 

@@ -147,7 +147,7 @@ struct HomeView: View {
     }
 
     private func addRoom() {
-        let room = Room(name: "Room \(rooms.count + 1)", width: 400, length: 500)
+        let room = Room(name: "Room \(rooms.count + 1)", shape: .custom, width: 400, length: 500)
         context.insert(room)
         try? context.save()
         newRoom = room

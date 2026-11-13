@@ -1,10 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// The room builder. Basic mode: pick rectangle or square and type the
-/// size. Advanced mode: draw any shape corner by corner and type measured
-/// wall lengths. Both place doors, windows, and outlets, and changes save
-/// as you make them.
+/// The room builder: draw any shape corner by corner and type measured
+/// wall lengths, or scan the room. Place doors, windows, and outlets.
+/// Changes save as you make them.
 struct RoomBuilderView: View {
     @Bindable var room: Room
 
@@ -18,7 +17,6 @@ struct RoomBuilderView: View {
     @State private var draftName = ""
     @State private var confirmDelete = false
     @State private var selectedWall: Int?
-    @State private var confirmBasic = false
     @State private var showScan = false
     /// Undo and redo for the advanced builder. Kept only while this screen
     /// is open.
@@ -40,9 +38,6 @@ struct RoomBuilderView: View {
     @AppStorage(SettingsKey.lockAngles) private var lockAngles = false
 
     private var unit: UnitSystem { UnitSystem(rawValue: unitRaw) ?? .imperial }
-
-    /// About 3 feet to 98 feet.
-    private let sizeRange: ClosedRange<Double> = 100...3000
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,12 +104,6 @@ struct RoomBuilderView: View {
         } message: {
             Text("Your items stay in Current Items.")
         }
-        .confirmationDialog("Switch to a basic room?", isPresented: $confirmBasic, titleVisibility: .visible) {
-            Button("Make it a rectangle") { switchToBasic() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Your corners will be replaced by a \(Length.format(room.width, system: unit)) × \(Length.format(room.length, system: unit)) rectangle.")
-        }
         .sheet(isPresented: $showScan) {
             ScanRoomView { draft in
                 recordForUndo()
@@ -122,6 +111,11 @@ struct RoomBuilderView: View {
                 room.addScannedFurniture(draft.furniture, context: context)
                 selectedWall = nil
             }
+        }
+        .onAppear {
+            // Rooms made before Basic mode was removed open as a drawing
+            // with the same corners. (Not counted as an edit.)
+            if room.shape != .custom { room.shape = .custom }
         }
         .onDisappear {
             try? context.save()
@@ -134,27 +128,21 @@ struct RoomBuilderView: View {
         VStack(spacing: 0) {
             // The plan stays pinned at the top while the form scrolls below.
             AppCard(padding: 0) {
-                if isAdvanced {
-                    VStack(spacing: 0) {
-                        AdvancedRoomCanvas(
-                            room: room,
-                            selectedWall: $selectedWall,
-                            selectedFeatureID: $selectedFeatureID,
-                            unit: unit,
-                            lockAngles: lockAngles,
-                            willEdit: recordForUndo
-                        )
-                        .frame(height: 300)
-                        .clipped()
-                        Divider()
-                        advancedControls
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                } else {
-                    RoomCanvasView(room: room, selectedFeatureID: $selectedFeatureID, selectedWall: $selectedWall, unit: unit)
-                        .frame(height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                VStack(spacing: 0) {
+                    AdvancedRoomCanvas(
+                        room: room,
+                        selectedWall: $selectedWall,
+                        selectedFeatureID: $selectedFeatureID,
+                        unit: unit,
+                        lockAngles: lockAngles,
+                        willEdit: recordForUndo
+                    )
+                    .frame(height: 300)
+                    .clipped()
+                    Divider()
+                    advancedControls
                 }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             }
             .padding(.horizontal, Theme.Space.md)
             .padding(.top, Theme.Space.sm)
@@ -173,11 +161,7 @@ struct RoomBuilderView: View {
             ScrollView {
                 VStack(spacing: Theme.Space.md) {
                     modeCard
-                    if isAdvanced {
-                        advancedCards
-                    } else {
-                        sizeCard
-                    }
+                    advancedCards
                     featuresCard
                 }
                 .padding(Theme.Space.md)
@@ -192,22 +176,12 @@ struct RoomBuilderView: View {
         return "Edit " + (name.hasPrefix("Wall") ? name : name.lowercased()) + " decor"
     }
 
-    // MARK: Basic or advanced
-
-    private var isAdvanced: Bool { room.shape == .custom }
+    // MARK: How to draw, and Scan
 
     private var modeCard: some View {
         AppCard {
             VStack(alignment: .leading, spacing: Theme.Space.sm + 4) {
-                Picker("Builder", selection: modeBinding) {
-                    Text("Basic").tag(false)
-                    Text("Advanced").tag(true)
-                }
-                .pickerStyle(.segmented)
-
-                Text(isAdvanced
-                     ? "Draw any shape: tap the plan to add a corner, drag a corner to move it, long-press to delete it. Tap a wall to type its length."
-                     : "A rectangle or square room. For L-shapes and angled walls, use Advanced.")
+                Text("Tap the plan to add a corner, drag a corner to move it, long-press to delete it. Tap a wall to type its length.")
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -218,39 +192,6 @@ struct RoomBuilderView: View {
                     .accessibilityHint("Makes a draft outline from a scan, for you to check")
             }
         }
-    }
-
-    private var modeBinding: Binding<Bool> {
-        Binding(
-            get: { isAdvanced },
-            set: { advanced in
-                if advanced {
-                    recordForUndo()
-                    room.setShape(.custom)
-                } else if isPlainRectangle {
-                    switchToBasic()
-                } else {
-                    confirmBasic = true
-                }
-            }
-        )
-    }
-
-    /// True when the custom outline is still an upright rectangle, so going
-    /// back to Basic loses nothing.
-    private var isPlainRectangle: Bool {
-        let rectangle = PlanGeometry.rectangleCorners(width: room.width, length: room.length)
-        guard room.corners.count == 4, let minX = room.corners.map(\.x).min(), let minY = room.corners.map(\.y).min() else {
-            return false
-        }
-        let shifted = room.corners.map { Point2D(x: $0.x - minX, y: $0.y - minY) }
-        return zip(shifted, rectangle).allSatisfy { PlanGeometry.distance($0, $1) < 0.5 }
-    }
-
-    private func switchToBasic() {
-        recordForUndo()
-        selectedWall = nil
-        room.setShape(.rectangle)
     }
 
     // MARK: Advanced builder
@@ -408,64 +349,6 @@ struct RoomBuilderView: View {
         if let wall = selectedWall, !outline.corners.indices.contains(wall) {
             selectedWall = nil
         }
-    }
-
-    // MARK: Shape and size (basic)
-
-    private var sizeCard: some View {
-        AppCard {
-            VStack(alignment: .leading, spacing: Theme.Space.md) {
-                SectionHeader(title: "Shape")
-                Picker("Shape", selection: shapeBinding) {
-                    ForEach([RoomShape.rectangle, .square]) { shape in
-                        Text(shape.title).tag(shape)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                SectionHeader(title: "Size")
-                if room.shape == .square {
-                    LengthField(title: "Side", cm: sideBinding, unit: unit, range: sizeRange)
-                } else {
-                    HStack(alignment: .top, spacing: Theme.Space.sm + 4) {
-                        LengthField(title: "Width", cm: widthBinding, unit: unit, range: sizeRange)
-                        LengthField(title: "Length", cm: lengthBinding, unit: unit, range: sizeRange)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Units")
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                    Picker("Units", selection: unitBinding) {
-                        ForEach(UnitSystem.allCases) { system in
-                            Text(system.title).tag(system)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-        }
-    }
-
-    private var shapeBinding: Binding<RoomShape> {
-        Binding(get: { room.shape }, set: { room.setShape($0) })
-    }
-
-    private var widthBinding: Binding<Double> {
-        Binding(get: { room.width }, set: { room.resize(width: $0, length: room.length) })
-    }
-
-    private var lengthBinding: Binding<Double> {
-        Binding(get: { room.length }, set: { room.resize(width: room.width, length: $0) })
-    }
-
-    private var sideBinding: Binding<Double> {
-        Binding(get: { room.width }, set: { room.resize(width: $0, length: $0) })
-    }
-
-    private var unitBinding: Binding<UnitSystem> {
-        Binding(get: { unit }, set: { unitRaw = $0.rawValue })
     }
 
     // MARK: Doors, windows, outlets
