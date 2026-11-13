@@ -1,5 +1,6 @@
 import XCTest
 @testable import InteriorDesign
+import SwiftData
 
 final class ItemCategoryTests: XCTestCase {
     func testEveryTypeHasACategory() {
@@ -363,5 +364,23 @@ final class SmallDecorVarietyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ideas.count, 3)
         // It always finds somewhere to go.
         XCTAssertTrue(ideas.allSatisfy { $0.leftOut.isEmpty })
+    }
+}
+
+@MainActor
+final class DecorSignatureStabilityTests: XCTestCase {
+    /// Unhung wall decor used to get a new random id on every read, so the
+    /// Layouts page saw a changed room on every redraw and froze.
+    func testUnhungWallDecorKeepsItsID() throws {
+        let container = try ModelContainer(for: Room.self, Item.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let room = Room(name: "Test", width: 400, length: 400)
+        context.insert(room)
+        let poster = Item(type: .poster)
+        context.insert(poster)
+        poster.setRooms([room], anyRoom: false)
+        try context.save()
+        XCTAssertEqual(room.wallDecorForPlanning.map(\.id), room.wallDecorForPlanning.map(\.id))
+        XCTAssertEqual(room.decorSignature, room.decorSignature)
     }
 }

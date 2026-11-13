@@ -56,8 +56,13 @@ extension Room {
     /// wall decor not hung yet (starting on the first wall).
     var wallDecorForPlanning: [WallDecor] {
         wallDecor + unhungWallDecor.map { item in
-            WallDecor(kind: item.type.decorKind ?? .frame, name: item.name, wall: 0, centerX: 0,
-                      widthCm: item.widthCm, heightCm: item.heightCm, depthCm: max(item.depthCm, 1), itemID: item.uuid)
+            var piece = WallDecor(kind: item.type.decorKind ?? .frame, name: item.name, wall: 0, centerX: 0,
+                                  widthCm: item.widthCm, heightCm: item.heightCm, depthCm: max(item.depthCm, 1), itemID: item.uuid)
+            // The same id every time (the item's), so screens that watch
+            // this list don't see a "new" piece on every redraw and redo
+            // their work forever (that froze the Layouts page).
+            piece.id = item.uuid
+            return piece
         }
     }
 
