@@ -22,7 +22,7 @@ An iPhone app that helps people design a room: capture the room and the furnitur
 ## App structure
 
 - Four bottom tabs, **left to right: Home, Current Items, Layouts, Catalog.**
-- **Profile button at the top right of every screen.** On Current Items the top-right icons are, left to right: room layout, camera, profile.
+- **Profile button at the top right of every screen.** On Current Items the add button (+) is at the top left (it opens the photo / library / type-it-in flow), and the top-right icons are, left to right: room layout, profile.
 - **Home:** one button per saved room (most recently edited first, marked "Last edited"), plus a "New room" button and a link to manage rooms.
 - **Current Items:** grid of items (photo, type, dimensions). Camera flow labels the item and estimates size, then a confirm screen lets the user edit it.
 - **Room layout builder:** Basic (rectangle/square + size), Advanced (tap corners, enter wall lengths, see angles, "Lock angles" snaps to 30/45/60/90), and Scan. Doors, windows and outlets are fixed features.

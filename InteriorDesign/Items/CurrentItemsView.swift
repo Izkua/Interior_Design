@@ -8,7 +8,6 @@ struct CurrentItemsView: View {
     @AppStorage(SettingsKey.unitSystem) private var unitRaw = UnitSystem.deviceDefault.rawValue
 
     @State private var showRooms = false
-    @State private var showCapture = false
     /// Owned by RootView, so onboarding can open the add-item sheet.
     @Binding var showAddItem: Bool
     @State private var itemToEdit: Item?
@@ -100,13 +99,11 @@ struct CurrentItemsView: View {
                         showAddItem = true
                     }
                 }
-                // Left to right: room layout, camera, profile.
+                // Left to right: room layout, profile. (Photos are taken
+                // from the + button's add flow.)
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     ToolbarIconButton(systemName: "ruler", label: "Room layout") {
                         showRooms = true
-                    }
-                    ToolbarIconButton(systemName: "camera", label: "Take a photo of an item") {
-                        showCapture = true
                     }
                     ProfileButton()
                 }
@@ -122,9 +119,6 @@ struct CurrentItemsView: View {
             }
             .sheet(item: $itemToEdit) { item in
                 ItemEditorSheet(item: item)
-            }
-            .sheet(isPresented: $showCapture) {
-                CaptureFlowView()
             }
         }
     }
