@@ -38,7 +38,7 @@ enum BackendConfig {
     /// Turn room photos into a draft outline with a backend model.
     static let roomScanEnabled = false
     /// Make AI pictures of a layout.
-    static let visualizeEnabled = false
+    static let visualizeEnabled = true
     /// Make AI 3D models of catalog products for "See it in my room"
     /// (generate-3d, Stability AI SPAR3D). The backend switch
     /// app_config.model_3d must be on too; until then the photo is used.

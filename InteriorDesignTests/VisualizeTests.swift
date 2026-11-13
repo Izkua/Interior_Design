@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import InteriorDesign
 
 final class VisualizeTests: XCTestCase {
@@ -47,10 +48,25 @@ final class VisualizeTests: XCTestCase {
     }
 
     @MainActor
-    func testButtonIsOffUntilSwitchedOn() {
+    func testButtonNeedsSignIn() {
+        // Switched on in the app (Nano Banana); the backend switch and
+        // sign-in still decide. Signed out, it can't be opened.
         UserDefaults.standard.set(false, forKey: SettingsKey.demoAIFeatures)
-        XCTAssertFalse(BackendConfig.visualizeEnabled)
-        XCTAssertEqual(VisualizeAvailability.current, .comingSoon)
-        XCTAssertFalse(VisualizeAvailability.current.canOpen)
+        XCTAssertTrue(BackendConfig.visualizeEnabled)
+        if !AuthStore.shared.isSignedIn {
+            XCTAssertEqual(VisualizeAvailability.current, .signInNeeded)
+            XCTAssertFalse(VisualizeAvailability.current.canOpen)
+        }
+    }
+
+    @MainActor
+    func testSendsAPlanPictureOfTheLayout() throws {
+        let room = Room(name: "Test", width: 400, length: 300)
+        let sofa = LayoutItem(id: UUID(), type: .sofa, name: "Sofa", width: 200, depth: 90, height: 85)
+        let plan = VisualizeExtras.planImage(room: room, placements: [ItemPlacement(itemID: sofa.id, x: 200, y: 100, rotation: 0)], items: [sofa])
+        let data = try XCTUnwrap(plan.flatMap { Data(base64Encoded: $0) })
+        let image = try XCTUnwrap(UIImage(data: data))
+        XCTAssertEqual(image.size.width, 512)
+        XCTAssertNil(VisualizeExtras.planImage(room: room, placements: [], items: [sofa]), "nothing placed, no plan")
     }
 }

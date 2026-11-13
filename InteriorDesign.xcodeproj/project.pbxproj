@@ -101,6 +101,7 @@
 		C5F2392A9849F033CA19E532 /* SmallDecor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E0D8C9A3177376F716A51D /* SmallDecor.swift */; };
 		C61148B53DC487CB5D8F0CBB /* RoomBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD32AF91A78DD4CE9A952E24 /* RoomBuilderView.swift */; };
 		C68D666B93814376E3C30A4C /* WallDecorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FFA1EAEFA4EEEBB65A7B30E /* WallDecorView.swift */; };
+		C880FF2C079C7AA25D6EB787 /* VisualizeExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0E6829E9FDC1E188CFE348 /* VisualizeExtras.swift */; };
 		C8B83FFE9F2A1FC1197F6286 /* VisualizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99012D6E75DD08D0F77D88DB /* VisualizeTests.swift */; };
 		C9023E11AE033DE5516D1F4B /* ItemCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFE2985D390311C591A63EAA /* ItemCategory.swift */; };
 		CA382BDCA861C4C298E097D7 /* ZoomableCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BA4D035C959CDF85947B9D /* ZoomableCanvas.swift */; };
@@ -150,6 +151,7 @@
 		02BA9941B6464C6AEAE4435A /* GeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryTests.swift; sourceTree = "<group>"; };
 		06AA4CB2D6C8472438E23C0E /* ItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTests.swift; sourceTree = "<group>"; };
 		09882C5C6806278EE37A4F19 /* FitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheck.swift; sourceTree = "<group>"; };
+		0A0E6829E9FDC1E188CFE348 /* VisualizeExtras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizeExtras.swift; sourceTree = "<group>"; };
 		0A6E66188537D9A11748DA46 /* VisualizeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizeView.swift; sourceTree = "<group>"; };
 		0B32E6439A0B7B37AA1954F1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0E4409AB17598462D7EC8660 /* CameraAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraAccess.swift; sourceTree = "<group>"; };
@@ -321,6 +323,7 @@
 		2106CFB309B3F77C9643049F /* Visualize */ = {
 			isa = PBXGroup;
 			children = (
+				0A0E6829E9FDC1E188CFE348 /* VisualizeExtras.swift */,
 				1E1DA46AA4EBA27A44A7825C /* VisualizeService.swift */,
 				0A6E66188537D9A11748DA46 /* VisualizeView.swift */,
 			);
@@ -802,6 +805,7 @@
 				6121E7403EC647C7CE0058D7 /* SmallDecorRoomView.swift in Sources */,
 				A4329FD659B40739A6127027 /* Theme.swift in Sources */,
 				1DC67EDA7E526CF0437E0BA3 /* Units.swift in Sources */,
+				C880FF2C079C7AA25D6EB787 /* VisualizeExtras.swift in Sources */,
 				8337B70C282BDC2CBA15AF95 /* VisualizeService.swift in Sources */,
 				D719F2D0EFE677A74AD47E6E /* VisualizeView.swift in Sources */,
 				EEFA5F806B2BE54FD233A4C1 /* WallDecor.swift in Sources */,

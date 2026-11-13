@@ -28,6 +28,12 @@ struct VisualizeRequest: Encodable, Sendable {
     var pieces: [Piece]
     /// Base64 JPEG, at most 1024 px on its long side.
     var roomPhoto: String?
+    /// Base64 PNG of the top-down plan of this layout.
+    var planImage: String?
+    struct PiecePhoto: Encodable, Sendable { var name: String; var data: String; var mime: String }
+    /// Photos of the person's own pieces (up to 4), so the picture shows
+    /// their actual furniture.
+    var piecePhotos: [PiecePhoto] = []
 
     init(room: Room, placements: [ItemPlacement], items: [LayoutItem], style: VisualStyle, roomPhoto: UIImage?) {
         let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })

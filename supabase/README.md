@@ -24,7 +24,7 @@ supabase/
 | --- | --- | --- |
 | Supabase | Free plan, no card | Free plan can't bill. Pauses after 7 days idle; restore in the dashboard. |
 | Channel3 | Free tier: 1,000 credits/month, 1 per search | We stop at 900/month (`app_config.catalog`), cache searches for 24 h, and limit each person/device to 30 searches per 10 minutes. |
-| AI images (Visualize) | Model not chosen yet; prepaid credits, auto-reload off | Off until a model is chosen. Hard cap of **$5 a month** for everyone (`app_config.image_generation.monthly_budget_cents = 500`), enforced in the database (`try_spend`), plus 3 a day and 10 a month per person. |
+| AI images (Visualize) | Google **Gemini 2.5 Flash Image** ("Nano Banana"): about $0.039 per picture. Google bills after use, so set a budget alert there too | Off until you add `GEMINI_API_KEY` and turn on `app_config.image_generation`. Hard cap of **$5 a month** for everyone (`app_config.image_generation.monthly_budget_cents = 500`), enforced in the database (`try_spend`), plus 3 a day and 10 a month per person. |
 | AI 3D models of products (`generate-3d`) | Stability AI **Stable Point Aware 3D (SPAR3D)**: 4 credits ($0.04) per model, prepaid credits, no auto-reload. Each product is made once, saved in Storage (`product-models` bucket), and shared. | Off until you turn on `app_config.model_3d`. Hard cap **$5 a month** (`monthly_budget_cents = 500`), plus 5 a day and 20 a month per person. Needs sign-in to make a new one; saved ones are free for everyone. |
 | Item labeling, room scan | Not used in v1 | Off. Item labeling runs on the phone (free); room photo scan is "coming soon"; LiDAR phones use Apple's RoomPlan (free, on the phone). |
 

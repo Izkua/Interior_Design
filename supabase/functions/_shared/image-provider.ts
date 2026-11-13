@@ -1,8 +1,10 @@
 // The slot for whichever image model is chosen in week 5.
 //
+import { NanoBananaProvider } from "./nano-banana.ts";
+
 // Every candidate model gets the same input and returns the same output,
 // so trying three models means writing three small adapters, not changing
-// the function. Nothing here calls a paid service yet.
+// the function. The chosen one (Nano Banana) is in nano-banana.ts.
 
 export type Style = "modern" | "scandinavian" | "warm" | "minimal";
 
@@ -25,6 +27,10 @@ export interface VisualizeInput {
   pieces: Piece[];
   /** Base64 JPEG of the real room, ≤1024 px, optional. */
   roomPhoto?: string;
+  /** Base64 PNG of the top-down plan of this layout, optional. */
+  planImage?: string;
+  /** Photos of the person's own pieces (cutouts), up to 4, optional. */
+  piecePhotos?: { name: string; data: string; mime?: string }[];
 }
 
 export interface ImageProvider {
@@ -64,5 +70,8 @@ export function describeLayout(input: VisualizeInput): string {
  * provider's current price and set costCents from it.
  */
 export function chosenProvider(): ImageProvider | null {
+  // Nano Banana, once its key is set (Supabase → Edge Functions → Secrets).
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  if (geminiKey) return new NanoBananaProvider(geminiKey);
   return null;
 }

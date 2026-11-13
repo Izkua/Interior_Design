@@ -207,7 +207,9 @@ struct VisualizeSheet: View {
     private func generate() {
         isWorking = true
         errorMessage = nil
-        let request = VisualizeRequest(room: room, placements: placements, items: items, style: style, roomPhoto: roomPhoto)
+        var request = VisualizeRequest(room: room, placements: placements, items: items, style: style, roomPhoto: roomPhoto)
+        request.planImage = VisualizeExtras.planImage(room: room, placements: placements, items: items)
+        request.piecePhotos = VisualizeExtras.piecePhotos(room: room, placements: placements, items: items)
         let service = self.service
         task = Task {
             do {
