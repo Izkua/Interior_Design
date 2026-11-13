@@ -111,14 +111,47 @@ struct ARPlaceView: View {
 
     @ViewBuilder
     private var bottomPanel: some View {
-        if let next = controller.pending.first {
+        if let step = controller.wallMarkStep {
+            // Marking a plain wall by where it meets the floor.
+            VStack(spacing: Theme.Space.sm) {
+                Text(step == 0
+                     ? "Aim the dot at the floor right where the wall meets it, near the LEFT end of where the art could go. Tap Mark."
+                     : "Now aim at the same line near the RIGHT end, and tap Mark.")
+                    .font(Typography.subheadline)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Theme.Space.sm) {
+                    panelButton("Cancel", systemImage: "xmark") { controller.cancelWallMarking() }
+                    PrimaryButton(title: controller.floorUnderDot ? "Mark" : "Find the floor…", systemImage: "mappin.and.ellipse") {
+                        controller.markWallPoint()
+                    }
+                    .disabled(!controller.floorUnderDot)
+                    .opacity(controller.floorUnderDot ? 1 : 0.6)
+                }
+            }
+            .padding(Theme.Space.md)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        } else if let next = controller.pending.first {
             VStack(spacing: Theme.Space.sm) {
                 pieceLine(next)
-                PrimaryButton(title: controller.floorFound ? "Place here" : "Looking for the floor…", systemImage: "arrow.down.to.line") {
+                PrimaryButton(title: controller.floorFound ? "Place here" : (next.goesOnWall ? "Looking for a wall…" : next.goesOnSurface ? "Looking for a table or desk…" : "Looking for the floor…"),
+                              systemImage: next.goesOnWall ? "rectangle.portrait.on.rectangle.portrait" : "arrow.down.to.line") {
                     controller.placePending()
                 }
                 .disabled(!controller.floorFound)
                 .opacity(controller.floorFound ? 1 : 0.6)
+                if next.goesOnWall {
+                    // Plain walls are hard to see without LiDAR; the floor
+                    // line is easy, so the wall can be built from it.
+                    Button {
+                        controller.startWallMarking()
+                    } label: {
+                        Label(controller.hasMarkedWall ? "Mark another wall" : "Wall not found? Mark it on the floor", systemImage: "ruler")
+                            .font(Typography.subheadline)
+                            .frame(maxWidth: .infinity, minHeight: Theme.minTap)
+                    }
+                    .foregroundStyle(Theme.accent)
+                }
             }
             .padding(Theme.Space.md)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
@@ -202,11 +235,24 @@ final class ARPlaceController: NSObject {
     private(set) var floorFound = false
     private(set) var placedCount = 0
     /// A short instruction over the camera, or nil.
-    private(set) var hint: String? = "Move your phone slowly to find the floor."
+    private(set) var hint: String? = "Move your phone slowly so it can find surfaces."
     /// A message about the 3D model, shown over the floor hint.
     private(set) var message: String?
     /// True once at least one piece has a cut-out photo to show.
     private(set) var hasPhotos = false
+    /// Marking a wall on the floor: 0 waiting for the left point, 1 for the
+    /// right one; nil when not marking.
+    private(set) var wallMarkStep: Int?
+    private(set) var floorUnderDot = false
+    private(set) var hasMarkedWall = false
+    /// Walls the person marked along the floor: a point on each, and which
+    /// way it faces (into the room).
+    @ObservationIgnored private var markedWalls: [(point: SIMD3<Float>, normal: SIMD3<Float>, from: SIMD3<Float>, to: SIMD3<Float>)] = []
+    @ObservationIgnored private var markStart: SIMD3<Float>?
+    @ObservationIgnored private var floorAim: SIMD3<Float>?
+    @ObservationIgnored private var markNodes: [Entity] = []
+    @ObservationIgnored private let markAnchor = AnchorEntity(world: .zero)
+
     /// Pieces shown with an AI-made 3D model, which get a label saying so.
     private(set) var aiModelIDs: Set<UUID> = []
     /// Models already at true size and in place (sets sized by their table).
@@ -235,19 +281,26 @@ final class ARPlaceController: NSObject {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         view.renderOptions.insert(.disableMotionBlur)
         let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal]
+        // Walls too, for posters and other wall decor.
+        config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
         view.session.run(config)
 
         let coaching = ARCoachingOverlayView()
         coaching.session = view.session
-        coaching.goal = .horizontalPlane
+        coaching.goal = .anyPlane
         coaching.activatesAutomatically = true
         coaching.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(coaching)
 
         view.scene.addAnchor(footprintAnchor)
+        view.scene.addAnchor(markAnchor)
         view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+        // Wall decor slides along the wall (the usual drag would lift it off).
+        let slide = UIPanGestureRecognizer(target: self, action: #selector(slid(_:)))
+        slide.delegate = self
+        slide.maximumNumberOfTouches = 1
+        view.addGestureRecognizer(slide)
         updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
             self?.turnPhotosToCamera()
             self?.updateAim()
@@ -265,7 +318,9 @@ final class ARPlaceController: NSObject {
         pending.append(contentsOf: pieces)
         if wasEmpty, let first = pending.first { showFootprint(for: first) }
         for piece in pieces where cutouts[piece.id] == nil && models[piece.id] == nil {
-            if let data = piece.modelData, piece.hasAIModel {
+            if piece.goesOnWall {
+                // Wall decor shows its photo flat on the wall (no 3D model).
+            } else if let data = piece.modelData, piece.hasAIModel {
                 // An AI model made from the person's own photo.
                 Task { [weak self] in await self?.showAIModel(data, for: piece.id, isNew: false) }
             } else if let data = piece.modelData, let model = Self.loadModel(data) {
@@ -315,6 +370,20 @@ final class ARPlaceController: NSObject {
     func placePending() {
         guard let aim, let arView, !pending.isEmpty else { return }
         let piece = pending.removeFirst()
+        if piece.goesOnWall {
+            // Hangs flat on the wall: a thin panel, with its photo on the front.
+            let entity = Self.makeWallEntity(for: piece, cutout: cutouts[piece.id])
+            let anchor = AnchorEntity(world: aim)
+            anchor.addChild(entity)
+            arView.scene.addAnchor(anchor)
+            placed[piece.id] = (piece, entity)
+            placedCount = placed.count
+            applyLook()
+            select(piece.id)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            if let next = pending.first { showFootprint(for: next) } else { footprint?.isEnabled = false }
+            return
+        }
         let entity = Self.makeEntity(for: piece)
         if let model = models[piece.id] {
             Self.addModel(model, of: piece, to: entity, stretch: aiModelIDs.contains(piece.id), asIs: trueSizeIDs.contains(piece.id))
@@ -336,7 +405,10 @@ final class ARPlaceController: NSObject {
     func turnSelected() {
         guard let id = selected?.id, let entity = placed[id]?.entity else { return }
         var transform = entity.transform
-        transform.rotation = simd_quatf(angle: .pi / 2, axis: [0, 1, 0]) * transform.rotation
+        // Wall decor turns on the wall (portrait or landscape); furniture
+        // turns on the floor.
+        let axis: SIMD3<Float> = placed[id]?.piece.goesOnWall == true ? [0, 0, 1] : [0, 1, 0]
+        transform.rotation = simd_quatf(angle: .pi / 2, axis: axis) * transform.rotation
         entity.move(to: transform, relativeTo: entity.parent, duration: 0.25)
     }
 
@@ -352,6 +424,35 @@ final class ARPlaceController: NSObject {
             value.entity.findEntity(named: "selection")?.isEnabled = key == id
         }
         selected = id.flatMap { placed[$0]?.piece }
+    }
+
+    /// Dragging wall decor: it follows the finger along the wall.
+    @ObservationIgnored private var sliding: UUID?
+
+    @objc private func slid(_ gesture: UIPanGestureRecognizer) {
+        guard let arView else { return }
+        let point = gesture.location(in: arView)
+        switch gesture.state {
+        case .began:
+            sliding = wallPiece(at: point)
+            if let sliding { select(sliding) }
+        case .changed:
+            guard let id = sliding, let anchor = placed[id]?.entity.anchor, let target = wallTransform(at: point) else { return }
+            anchor.transform = target
+        default:
+            sliding = nil
+        }
+    }
+
+    /// The wall decor piece under a point on the screen, if any.
+    private func wallPiece(at point: CGPoint) -> UUID? {
+        guard let arView else { return nil }
+        var hit = arView.entity(at: point)
+        while let current = hit, !placed.values.contains(where: { $0.entity === current }) {
+            hit = current.parent
+        }
+        guard let id = placed.first(where: { $0.value.entity === hit })?.key, placed[id]?.piece.goesOnWall == true else { return nil }
+        return id
     }
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
@@ -386,7 +487,11 @@ final class ARPlaceController: NSObject {
         cutouts[id] = cutout
         hasPhotos = true
         if let entry = placed[id], entry.entity.findEntity(named: "photo") == nil {
-            Self.addPhoto(cutout, of: entry.piece, to: entry.entity)
+            if entry.piece.goesOnWall {
+                Self.addWallPhoto(cutout, of: entry.piece, to: entry.entity)
+            } else {
+                Self.addPhoto(cutout, of: entry.piece, to: entry.entity)
+            }
             applyLook()
         }
     }
@@ -420,7 +525,7 @@ final class ARPlaceController: NSObject {
             let (parsed, placedAsSet) = try await Task.detached {
                 var model = try GLBModel(data: data)
                 // Stand it up straight and square it before sizing it.
-                model.rotate(by: ModelFit.straightening(model.allPositions))
+                model.standUp()
                 // A set (table and chairs): the listed size is the table's,
                 // so size by the table and let the chairs sit around it.
                 let asSet = isSet && model.placeAsSet(target: target)
@@ -491,15 +596,191 @@ final class ARPlaceController: NSObject {
         }
     }
 
-    // MARK: Aiming at the floor
+    // MARK: Aiming at the floor (or a wall, for wall decor)
+
+    /// Where a point on the screen meets a wall, facing out of the wall
+    /// toward the phone, with the piece upright.
+    // MARK: Marking a wall on the floor
+
+    func startWallMarking() {
+        wallMarkStep = 0
+        markStart = nil
+        footprint?.isEnabled = false
+    }
+
+    func cancelWallMarking() {
+        wallMarkStep = nil
+        markStart = nil
+        clearMarkDots(keepWalls: true)
+    }
+
+    func markWallPoint() {
+        guard let point = floorAim, let step = wallMarkStep, let arView else { return }
+        addMarkDot(at: point)
+        if step == 0 {
+            markStart = point
+            wallMarkStep = 1
+            return
+        }
+        guard let start = markStart else { return }
+        var along = point - start
+        along.y = 0
+        guard simd_length(along) > 0.15 else { return }   // too close together to tell the direction
+        var normal = simd_normalize(simd_cross(simd_normalize(along), [0, 1, 0]))
+        let toCamera = arView.cameraTransform.translation - start
+        if simd_dot(normal, toCamera) < 0 { normal = -normal }
+        markedWalls.append((start, normal, start, point))
+        hasMarkedWall = true
+        showMarkedWall(from: start, to: point, normal: normal)
+        wallMarkStep = nil
+        markStart = nil
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    /// Where the aim meets the floor, while marking.
+    private func updateFloorAim() {
+        guard let arView, wallMarkStep != nil else { return }
+        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        let result = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal).first
+        floorAim = result.map { simd_make_float3($0.worldTransform.columns.3) }
+        if floorUnderDot != (floorAim != nil) { floorUnderDot = floorAim != nil }
+        if let floorAim {
+            if markNodes.last?.name != "aim" {
+                let ring = ModelEntity(mesh: .generatePlane(width: 0.06, depth: 0.06, cornerRadius: 0.03), materials: [UnlitMaterial(color: .white)])
+                ring.name = "aim"
+                markAnchor.addChild(ring)
+                markNodes.append(ring)
+            }
+            markNodes.last?.position = floorAim
+        }
+    }
+
+    private func addMarkDot(at point: SIMD3<Float>) {
+        let dot = ModelEntity(mesh: .generateSphere(radius: 0.02), materials: [UnlitMaterial(color: UIColor(Theme.accent))])
+        dot.position = point
+        markAnchor.addChild(dot)
+    }
+
+    /// A faint see-through wall standing on the marked line, so it's clear
+    /// where the art will go.
+    private func showMarkedWall(from a: SIMD3<Float>, to b: SIMD3<Float>, normal: SIMD3<Float>) {
+        clearMarkDots(keepWalls: true)
+        let width = simd_distance(SIMD2(a.x, a.z), SIMD2(b.x, b.z)) + 1
+        let height: Float = 2.4
+        let wall = ModelEntity(mesh: .generatePlane(width: width, height: height), materials: [Self.seeThrough(.white, 0.12)])
+        wall.name = "markedWall"
+        wall.position = (a + b) / 2 + SIMD3(0, height / 2, 0)
+        wall.orientation = simd_quatf(angle: atan2(normal.x, normal.z), axis: [0, 1, 0])
+        markAnchor.addChild(wall)
+    }
+
+    private func clearMarkDots(keepWalls: Bool) {
+        for child in Array(markAnchor.children) where !(keepWalls && child.name == "markedWall") {
+            child.removeFromParent()
+        }
+        markNodes.removeAll()
+    }
+
+    /// Where a screen point's ray meets a marked wall (the nearest one in
+    /// front, near where it was marked), facing into the room.
+    private func markedWallHit(at point: CGPoint) -> Transform? {
+        guard let arView, let ray = arView.ray(through: point) else { return nil }
+        var best: (t: Float, wall: (point: SIMD3<Float>, normal: SIMD3<Float>, from: SIMD3<Float>, to: SIMD3<Float>))?
+        for wall in markedWalls {
+            let facing = simd_dot(wall.normal, ray.direction)
+            guard abs(facing) > 1e-3 else { continue }
+            let t = simd_dot(wall.normal, wall.point - ray.origin) / facing
+            guard t > 0.1, t < 10 else { continue }
+            // Stay near the marked stretch (a little past each end is fine).
+            let hit = ray.origin + ray.direction * t
+            let along = simd_normalize(SIMD3(wall.to.x - wall.from.x, 0, wall.to.z - wall.from.z))
+            let s = simd_dot(hit - wall.from, along)
+            let length = simd_distance(SIMD2(wall.from.x, wall.from.z), SIMD2(wall.to.x, wall.to.z))
+            guard s > -1, s < length + 1 else { continue }
+            if best == nil || t < best!.t { best = (t, wall) }
+        }
+        guard let best else { return nil }
+        let position = ray.origin + ray.direction * best.t
+        let n = best.wall.normal
+        return Transform(rotation: simd_quatf(angle: atan2(n.x, n.z), axis: [0, 1, 0]), translation: position)
+    }
+
+    private func wallTransform(at point: CGPoint) -> Transform? {
+        guard let arView else { return nil }
+        // A wall the person marked wins: they marked it because ARKit
+        // couldn't see it.
+        if let marked = markedWallHit(at: point) { return marked }
+        // A wall ARKit has actually found first, then its best guess.
+        // (Not the endless extension of a found wall: that runs on past
+        // corners, which put the outline outside the room.)
+        func hit(_ p: CGPoint) -> SIMD3<Float>? {
+            for target in [ARRaycastQuery.Target.existingPlaneGeometry, .estimatedPlane] {
+                if let result = arView.raycast(from: p, allowing: target, alignment: .vertical).first {
+                    return simd_make_float3(result.worldTransform.columns.3)
+                }
+            }
+            return nil
+        }
+        guard let position = hit(point) else { return nil }
+        let toCamera = arView.cameraTransform.translation - position
+        // Which way the wall runs: from two more points beside the aim.
+        var normal: SIMD3<Float>?
+        let side: CGFloat = 40
+        if let left = hit(CGPoint(x: point.x - side, y: point.y)), let right = hit(CGPoint(x: point.x + side, y: point.y)) {
+            var along = right - left
+            along.y = 0
+            // Both points on the same wall: they're a few cm apart, level.
+            if simd_length(along) > 0.01, simd_length(along) < 1.5 {
+                normal = simd_normalize(simd_cross(simd_normalize(along), [0, 1, 0]))
+            }
+        }
+        // Fallback: face the phone, level.
+        if normal == nil {
+            var flat = toCamera
+            flat.y = 0
+            guard simd_length(flat) > 1e-3 else { return nil }
+            normal = simd_normalize(flat)
+        }
+        var n = normal!
+        // The front faces the room (the phone's side).
+        if simd_dot(n, toCamera) < 0 { n = -n }
+        return Transform(rotation: simd_quatf(angle: atan2(n.x, n.z), axis: [0, 1, 0]), translation: position)
+    }
 
     private func updateAim() {
-        guard let arView, !pending.isEmpty else { return }
+        if wallMarkStep != nil {
+            updateFloorAim()
+            return
+        }
+        guard let arView, let next = pending.first else { return }
         let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        if next.goesOnWall {
+            guard var transform = wallTransform(at: center) else {
+                if floorFound { floorFound = false }
+                footprint?.isEnabled = false
+                let words = hasMarkedWall
+                    ? "Point at the wall you marked, or at another wall."
+                    : "Point at a wall. Plain walls can be hard to find: tap \"Wall not found?\" below to mark it on the floor instead."
+                if hint != words { hint = words }
+                return
+            }
+            if let current = footprint?.transform, footprint?.isEnabled == true,
+               simd_distance(current.translation, transform.translation) < 0.3 {
+                transform.translation = simd_mix(current.translation, transform.translation, simd_float3(repeating: 0.4))
+                transform.rotation = simd_slerp(current.rotation, transform.rotation, 0.4)
+            }
+            footprint?.transform = transform
+            footprint?.isEnabled = true
+            aim = transform.matrix
+            if !floorFound { floorFound = true }
+            if hint != nil { hint = nil }
+            return
+        }
         guard let result = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal).first else {
             if floorFound { floorFound = false }
             footprint?.isEnabled = false
-            if hint == nil { hint = "Point at the floor." }
+            let words = next.goesOnSurface ? "Point at a table, desk, or shelf." : "Point at the floor."
+            if hint != words { hint = words }
             return
         }
         // Face the piece's front toward the camera.
@@ -521,9 +802,26 @@ final class ARPlaceController: NSObject {
         if hint != nil { hint = nil }
     }
 
-    /// A flat outline of the next piece's true footprint, under the aiming point.
+    /// A flat outline of the next piece's true footprint, under the aiming
+    /// point (on the wall, for wall decor: its width and height).
     private func showFootprint(for piece: ARPiece) {
         footprint?.removeFromParent()
+        if piece.goesOnWall {
+            let w = Float(piece.widthCm / 100), h = Float(piece.heightCm / 100)
+            let frame = ModelEntity()
+            let outline = Self.outline(width: w, depth: h, line: 0.012, color: .white)
+            // The outline is drawn lying flat; stand it up against the wall.
+            outline.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+            outline.position.z = 0.004
+            frame.addChild(outline)
+            let fill = ModelEntity(mesh: .generatePlane(width: w, height: h), materials: [Self.seeThrough(.white, 0.18)])
+            fill.position.z = 0.003
+            frame.addChild(fill)
+            frame.isEnabled = false
+            footprintAnchor.addChild(frame)
+            footprint = frame
+            return
+        }
         let w = Float(piece.widthCm / 100), d = Float(piece.depthCm / 100)
         let outline = Self.outline(width: w, depth: d, line: 0.012, color: .white)
         let fill = ModelEntity(mesh: .generatePlane(width: w, depth: d), materials: [Self.seeThrough(.white, 0.18)])
@@ -538,6 +836,49 @@ final class ARPlaceController: NSObject {
     }
 
     // MARK: Building the 3D stand-in
+
+    /// The art's picture on the front of its wall panel, fitted inside its
+    /// width and height.
+    static func addWallPhoto(_ cutout: CGImage, of piece: ARPiece, to root: Entity) {
+        guard let texture = try? TextureResource.generate(from: cutout, options: .init(semantic: .color)) else { return }
+        let w = Float(piece.widthCm / 100), h = Float(piece.heightCm / 100)
+        let d = max(Float(piece.depthCm / 100), 0.005)
+        var photoMaterial = UnlitMaterial()
+        photoMaterial.color = .init(tint: .white, texture: .init(texture))
+        photoMaterial.opacityThreshold = 0.5
+        let aspect = Float(cutout.width) / Float(max(cutout.height, 1))
+        var pw = w, ph = w / aspect
+        if ph > h { ph = h; pw = h * aspect }
+        let photo = ModelEntity(mesh: .generatePlane(width: pw, height: ph), materials: [photoMaterial])
+        photo.name = "photo"
+        photo.position.z = d + 0.002
+        root.addChild(photo)
+    }
+
+    /// Wall decor: a thin panel flat on the wall, centered on where it was
+    /// placed, with the photo (or cutout) on its front.
+    static func makeWallEntity(for piece: ARPiece, cutout: CGImage?) -> ModelEntity {
+        let w = Float(piece.widthCm / 100), h = Float(piece.heightCm / 100)
+        let d = max(Float(piece.depthCm / 100), 0.005)
+        let root = ModelEntity()
+        let shape = Entity()
+        shape.name = "shape"
+        let panel = ModelEntity(mesh: .generateBox(size: [w, h, d], cornerRadius: min(d / 2, 0.003)),
+                                materials: [material(for: .main, piece.colors)])
+        panel.name = "main"
+        panel.position.z = d / 2
+        shape.addChild(panel)
+        root.addChild(shape)
+        if let cutout { addWallPhoto(cutout, of: piece, to: root) }
+        let selection = outline(width: w + 0.04, depth: h + 0.04, line: 0.012, color: UIColor(Theme.accent))
+        selection.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        selection.position.z = d + 0.004
+        selection.name = "selection"
+        selection.isEnabled = false
+        root.addChild(selection)
+        root.collision = CollisionComponent(shapes: [ShapeResource.generateBox(size: [w, h, max(d, 0.02)]).offsetBy(translation: [0, 0, max(d, 0.02) / 2])])
+        return root
+    }
 
     static func makeEntity(for piece: ARPiece) -> ModelEntity {
         let root = ModelEntity()
@@ -696,3 +1037,23 @@ final class ARPlaceController: NSObject {
 
 /// Marks a standing photo that turns to face the camera.
 private struct BillboardTag: Component {}
+
+extension ARPlaceController: UIGestureRecognizerDelegate {
+    /// The wall drag only starts on a piece of wall decor, so furniture
+    /// keeps its own drag and twist.
+    nonisolated func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+        MainActor.assumeIsolated {
+            guard let arView else { return false }
+            return wallPiece(at: gesture.location(in: arView)) != nil
+        }
+    }
+}
+
+extension ARPiece {
+    /// Wall decor (posters, art, mirrors, clocks, wall shelves) is placed on
+    /// a wall, not the floor.
+    var goesOnWall: Bool { type.category == .wallDecor }
+    /// Small decor (a monitor, a lamp, a plant) usually sits on a table or
+    /// desk; it's placed on any level surface, the floor included.
+    var goesOnSurface: Bool { type.category == .smallDecor }
+}

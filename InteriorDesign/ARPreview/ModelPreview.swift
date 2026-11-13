@@ -82,7 +82,7 @@ struct ModelPreview: UIViewRepresentable {
             if GLBModel.isGLB(data) {
                 guard let parsed = try? await Task.detached(operation: {
                     var model = try GLBModel(data: data)
-                    model.rotate(by: ModelFit.straightening(model.allPositions))
+                    model.standUp()
                     return model
                 }).value else { return nil }
                 return try? parsed.entity()

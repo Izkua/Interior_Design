@@ -40,7 +40,7 @@ extension ModelFit {
     /// squared up, fits in the smallest box, so this tries small tilts
     /// (up to 30°, so a tall piece is never laid down) and turns, and keeps
     /// the one with the smallest box.
-    static func straightening(_ points: [SIMD3<Float>]) -> simd_quatf {
+    static func straightening(_ points: [SIMD3<Float>], tilt allowTilt: Bool = true) -> simd_quatf {
         let sample = thinned(points, max: 1500)
         guard sample.count >= 4 else { return simd_quatf(angle: 0, axis: [0, 1, 0]) }
 
@@ -80,9 +80,9 @@ extension ModelFit {
         }
 
         // Coarse, then finer, over turn and both tilts.
-        var best = search(around: .zero, step: 6, reach: 42, tilt: true)
-        best = search(around: best, step: 1.5, reach: 6, tilt: true)
-        best = search(around: best, step: 0.5, reach: 1.5, tilt: true)
+        var best = search(around: .zero, step: 6, reach: 42, tilt: allowTilt)
+        best = search(around: best, step: 1.5, reach: 6, tilt: allowTilt)
+        best = search(around: best, step: 0.5, reach: 1.5, tilt: allowTilt)
         // If leaning barely helps, the model was already standing straight:
         // only square it up.
         let level = search(around: SIMD3(0, best.y, 0), step: 0.5, reach: 3, tilt: false)
@@ -130,10 +130,24 @@ extension ModelFit {
     /// and size it so the table top matches the listed size. The chairs then
     /// come out at their natural size around it.
     struct SetPlacement: Equatable {
+        init(turn: Float, scale: Float, scaleX: Float? = nil, scaleZ: Float? = nil, heightScale: Float? = nil, tableCenter: SIMD2<Float>) {
+            self.turn = turn
+            self.scale = scale
+            self.scaleX = scaleX ?? scale
+            self.scaleZ = scaleZ ?? scale
+            self.heightScale = heightScale ?? scale
+            self.tableCenter = tableCenter
+        }
+
         /// Extra turn (radians, around up) to square the table.
         var turn: Float
-        /// Same in every direction.
+        /// Across, on average.
         var scale: Float
+        /// Along the width and the depth, so the table top matches.
+        var scaleX: Float
+        var scaleZ: Float
+        /// Up, so the table top comes out at the listed height.
+        var heightScale: Float
         /// Where the table top's middle is, after the turn (before scaling),
         /// so it can be moved onto the outline's middle.
         var tableCenter: SIMD2<Float>
@@ -172,8 +186,11 @@ extension ModelFit {
         // The highest band with plenty of flat area, above the bottom third
         // (so it isn't a rug or the feet).
         guard let top = (bands / 3..<bands).reversed().first(where: { area[$0] >= biggest * 0.35 }) else { return nil }
-        let points = flats.filter { abs(band($0.y) - top) <= 1 }.flatMap(\.corners)
+        // At that height there can also be bits of the chairs (the top rail
+        // of a chair back). The table top is the biggest connected piece.
+        let points = largestPatch(flats.filter { abs(band($0.y) - top) <= 1 }.map(\.corners))
         guard points.count >= 12 else { return nil }
+        let tableTop = points.map(\.y).reduce(0, +) / Float(points.count) - lowest
 
         // Square the table top: the turn with the smallest box around it.
         func box(_ angle: Float) -> (size: SIMD2<Float>, center: SIMD2<Float>) {
@@ -199,8 +216,133 @@ extension ModelFit {
             top2 = box(bestAngle)
         }
         guard top2.size.x > 0, top2.size.y > 0 else { return nil }
-        // Average of the two directions, so the shape isn't stretched.
-        let scale = (target.x / top2.size.x + target.z / top2.size.y) / 2
-        return SetPlacement(turn: bestAngle, scale: scale, tableCenter: top2.center)
+        // The table top matches the listed width and depth. If the AI got
+        // the table's shape quite wrong, don't stretch more than 25% apart.
+        let average = (target.x / top2.size.x + target.z / top2.size.y) / 2
+        let scaleX = min(max(target.x / top2.size.x, average / 1.25), average * 1.25)
+        let scaleZ = min(max(target.z / top2.size.y, average / 1.25), average * 1.25)
+        let scale = average
+        // AI models often make the table a bit low or high for its size.
+        // Raise or lower it to the listed height, within reason.
+        var heightScale = scale
+        if tableTop > 0, target.y > 0 {
+            heightScale = min(max(target.y / tableTop, scale * 0.75), scale * 1.33)
+        }
+        return SetPlacement(turn: bestAngle, scale: scale, scaleX: scaleX, scaleZ: scaleZ, heightScale: heightScale, tableCenter: top2.center)
+    }
+}
+
+// MARK: - Leveling by flat surfaces
+
+extension ModelFit {
+    /// The tilt that makes the model's flat surfaces (a table top, a seat,
+    /// a bed) level. A piece of furniture's biggest flat areas face up, so
+    /// this tries tilts up to 30° and keeps the one where the most surface
+    /// area faces straight up or down. More reliable than the smallest-box
+    /// test for sets, where chairs around a table can make a tilted box
+    /// look smaller. Nil if the model has no clear flat surfaces.
+    static func leveling(_ meshes: [(positions: [SIMD3<Float>], indices: [UInt32])]) -> simd_quatf? {
+        // Triangle facing directions and sizes (a sample, for speed).
+        var faces: [(normal: SIMD3<Float>, area: Float)] = []
+        var total: Float = 0
+        for mesh in meshes {
+            var i = 0
+            while i + 2 < mesh.indices.count {
+                let a = mesh.positions[Int(mesh.indices[i])], b = mesh.positions[Int(mesh.indices[i + 1])], c = mesh.positions[Int(mesh.indices[i + 2])]
+                i += 3
+                let n = simd_cross(b - a, c - a)
+                let length = simd_length(n)
+                guard length > 0 else { continue }
+                total += length / 2
+                // Only roughly horizontal ones can be the flat tops.
+                if abs(n.y) / length > 0.6 { faces.append((n / length, length / 2)) }
+            }
+        }
+        guard total > 0, !faces.isEmpty else { return nil }
+        if faces.count > 5000 {
+            let step = Double(faces.count) / 5000
+            faces = (0..<5000).map { faces[Int(Double($0) * step)] }
+        }
+        let cone = cos(Float(6) * .pi / 180)
+        func up(_ pitch: Float, _ roll: Float) -> SIMD3<Float> {
+            let r = Float.pi / 180
+            return simd_normalize(SIMD3(sin(roll * r), cos(pitch * r) * cos(roll * r), sin(pitch * r)))
+        }
+        func score(_ d: SIMD3<Float>) -> Float {
+            faces.reduce(0) { $0 + (abs(simd_dot($1.normal, d)) >= cone ? $1.area : 0) }
+        }
+        var best = (pitch: Float(0), roll: Float(0), score: score(up(0, 0)))
+        let level = best.score
+        for pitch in stride(from: Float(-30), through: 30, by: 2) {
+            for roll in stride(from: Float(-30), through: 30, by: 2) {
+                let s = score(up(pitch, roll))
+                if s > best.score { best = (pitch, roll, s) }
+            }
+        }
+        for pitch in stride(from: best.pitch - 2, through: best.pitch + 2, by: 0.5) {
+            for roll in stride(from: best.roll - 2, through: best.roll + 2, by: 0.5) {
+                let s = score(up(pitch, roll))
+                if s > best.score { best = (pitch, roll, s) }
+            }
+        }
+        // Too little flat area to trust (a lamp, a plant).
+        let sampled = faces.reduce(0) { $0 + $1.area }
+        guard best.score > sampled * 0.15 else { return nil }
+        // Already level, or close enough: don't tilt for a tiny gain.
+        if best.score < level * 1.1 { return simd_quatf(angle: 0, axis: [0, 1, 0]) }
+        return simd_quatf(from: up(best.pitch, best.roll), to: [0, 1, 0])
+    }
+}
+
+extension ModelFit {
+    /// The corners of the biggest connected flat piece among these
+    /// triangles (each given by its three corners), judged on a grid seen
+    /// from above.
+    static func largestPatch(_ triangles: [[SIMD3<Float>]]) -> [SIMD3<Float>] {
+        let all = triangles.flatMap { $0 }
+        guard all.count >= 3 else { return all }
+        var lo = SIMD2<Float>(repeating: .greatestFiniteMagnitude), hi = -lo
+        for p in all { lo = simd_min(lo, SIMD2(p.x, p.z)); hi = simd_max(hi, SIMD2(p.x, p.z)) }
+        let cells = 80
+        let cell = max(hi.x - lo.x, hi.y - lo.y) / Float(cells - 1)
+        guard cell > 0 else { return all }
+        func key(_ p: SIMD3<Float>) -> Int {
+            let x = min(cells - 1, max(0, Int((p.x - lo.x) / cell)))
+            let z = min(cells - 1, max(0, Int((p.z - lo.y) / cell)))
+            return z * cells + x
+        }
+        // Which triangles touch each cell (each triangle marks its corners
+        // and middle).
+        var occupied = [Int: [Int]]()
+        for (t, tri) in triangles.enumerated() {
+            let middle = (tri[0] + tri[1] + tri[2]) / 3
+            for k in Set((tri + [middle]).map(key)) { occupied[k, default: []].append(t) }
+        }
+        // Group touching cells (including diagonal neighbors); keep the
+        // group with the most flat area.
+        var seen = Set<Int>()
+        var best: (area: Float, triangles: Set<Int>) = (0, [])
+        for start in occupied.keys where !seen.contains(start) {
+            var stack = [start], group = Set<Int>()
+            seen.insert(start)
+            while let k = stack.popLast() {
+                group.formUnion(occupied[k] ?? [])
+                let x = k % cells, z = k / cells
+                for dz in -1...1 {
+                    for dx in -1...1 where dx != 0 || dz != 0 {
+                        let nx = x + dx, nz = z + dz
+                        guard nx >= 0, nz >= 0, nx < cells, nz < cells else { continue }
+                        let n = nz * cells + nx
+                        if occupied[n] != nil, seen.insert(n).inserted { stack.append(n) }
+                    }
+                }
+            }
+            let area = group.reduce(Float(0)) { sum, t in
+                let tri = triangles[t]
+                return sum + simd_length(simd_cross(tri[1] - tri[0], tri[2] - tri[0])) / 2
+            }
+            if area > best.area { best = (area, group) }
+        }
+        return best.triangles.flatMap { triangles[$0] }
     }
 }
