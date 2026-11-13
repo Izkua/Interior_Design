@@ -138,20 +138,36 @@ struct MeasureSteps: Equatable {
     private(set) var hasStart = false
     /// Order sizes were measured in, for Back.
     private var history: [MeasureDimension] = []
+    /// The sizes to measure, in order. Flat art on a wall only needs width
+    /// and height; its depth is filled in.
+    private(set) var order: [MeasureDimension] = Self.order
+
+    init() {}
+
+    /// Flat art on a wall (a poster, a canvas): width and then height, both
+    /// measured on the wall, with the depth set to `depthCm` without
+    /// measuring.
+    init(flatWithDepth depthCm: Double) {
+        order = [.width, .height]
+        values[MeasureDimension.depth.rawValue] = depthCm
+    }
+
+    /// How many sizes are measured ("Step 1 of 2").
+    var stepCount: Int { order.count }
 
     /// Height first: its top gives a level plane at the item's top, and
     /// width and depth are then measured on that plane, right on the item.
     static let order: [MeasureDimension] = [.height, .width, .depth]
 
     var current: MeasureDimension? {
-        chosen ?? Self.order.first { values[$0.rawValue] == nil }
+        chosen ?? order.first { values[$0.rawValue] == nil }
     }
     var isDone: Bool { current == nil }
     var currentName: String? { current?.name }
     /// Finished measurements, in cm, in width-depth-height order.
     var results: [Double] { values.compactMap { $0 } }
     /// "Step 2 of 3".
-    var stepNumber: Int { (current.flatMap { Self.order.firstIndex(of: $0) } ?? 2) + 1 }
+    var stepNumber: Int { (current.flatMap { order.firstIndex(of: $0) } ?? order.count - 1) + 1 }
 
     func value(_ dimension: MeasureDimension) -> Double? { values[dimension.rawValue] }
 
@@ -221,6 +237,9 @@ struct ARMeasureView: View {
     /// Decor that stands on a desk or table (a monitor, a lamp): measured
     /// from that surface, and its depth can be skipped.
     var onSurface = false
+    /// Flat art on a wall (a poster, a canvas): width and height are
+    /// measured on the wall itself, and depth is skipped.
+    var flatOnWall = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var steps = MeasureSteps()
@@ -247,7 +266,7 @@ struct ARMeasureView: View {
             VStack(spacing: Theme.Space.sm) {
                 header
                 progressChips
-                if let current = steps.current, current != .height, model.topY != nil {
+                if !flatOnWall, let current = steps.current, current != .height, model.topY != nil {
                     Picker("Measure at", selection: $measureAtTop) {
                         Text("Top of item").tag(true)
                         Text(onSurface ? "Desk or table" : "Floor").tag(false)
@@ -324,12 +343,18 @@ struct ARMeasureView: View {
         .sensoryFeedback(.impact, trigger: tapCount)
         .onChange(of: steps.current) { _, next in
             guard let next else { return }
-            UIAccessibility.post(notification: .announcement, argument: "Step \(steps.stepNumber) of 3. Measure the \(next.name).")
+            UIAccessibility.post(notification: .announcement, argument: "Step \(steps.stepNumber) of \(steps.stepCount). Measure the \(next.name).")
         }
         .onAppear {
             // Thin, upright things have no top to aim across: measure on
             // the desk or table they stand on instead.
             if onSurface { measureAtTop = false }
+            if flatOnWall {
+                // Posters are about 1 cm deep; framed art and canvases more.
+                steps = MeasureSteps(flatWithDepth: max(1, min(typical(.depth), 5)))
+                measureAtTop = false
+                model.onWall = true
+            }
             model.currentColor = steps.current?.uiColor ?? .systemBlue
             model.upcoming = steps.current
             model.measureAtTop = measureAtTop
@@ -352,7 +377,7 @@ struct ARMeasureView: View {
                         .frame(width: 70, height: 50)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Step \(steps.stepNumber) of 3")
+                        Text("Step \(steps.stepNumber) of \(steps.stepCount)")
                             .font(Typography.caption)
                             .foregroundStyle(.white.opacity(0.85))
                         Text(current.title)
@@ -361,8 +386,10 @@ struct ARMeasureView: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Step \(steps.stepNumber) of 3: \(current.name)")
-                Text(onSurface && current == .height ? "Height: from the desk or table it stands on to its highest point." : current.explanation)
+                .accessibilityLabel("Step \(steps.stepNumber) of \(steps.stepCount): \(current.name)")
+                Text(flatOnWall
+                     ? (current == .width ? "Width: from the left edge to the right edge." : "Height: from the bottom edge to the top edge.")
+                     : (onSurface && current == .height ? "Height: from the desk or table it stands on to its highest point." : current.explanation))
                     .font(Typography.subheadline)
                     .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
@@ -387,7 +414,7 @@ struct ARMeasureView: View {
     /// Width ✓ 82″ · Depth … · Height …  Tap one to measure it again.
     private var progressChips: some View {
         HStack(spacing: 6) {
-            ForEach(MeasureSteps.order) { dimension in
+            ForEach(steps.order) { dimension in
                 let value = steps.value(dimension)
                 let isCurrent = steps.current == dimension
                 Button {
@@ -419,7 +446,7 @@ struct ARMeasureView: View {
            let live = model.liveDistanceCm, live > max(typical(current) * 2.5, typical(current) + 60) {
             return "That looks too big. Make sure the ring is on the item, not the wall or floor behind it."
         }
-        if let height = steps.value(.height), height < 40, steps.current == .width, !steps.hasStart {
+        if !flatOnWall, let height = steps.value(.height), height < 40, steps.current == .width, !steps.hasStart {
             return "Small item? Typing the sizes or using a card in a photo may be easier."
         }
         return nil
@@ -430,6 +457,17 @@ struct ARMeasureView: View {
     private var instruction: String {
         if let problem = model.problem { return problem }
         guard let current = steps.current else { return "Done" }
+        if flatOnWall {
+            if !model.surfaceUnderDot && !steps.hasStart {
+                return "Point at the wall next to the art and move your phone a little until the dot lights up."
+            }
+            switch (current, steps.hasStart) {
+            case (.height, false): return "Put the ring on the BOTTOM edge of the art, then tap Set start."
+            case (.height, true): return "Now aim at the TOP edge, then tap Set end."
+            case (_, false): return "Put the ring on the LEFT edge of the art, then tap Set start."
+            case (_, true): return "Move the ring to the RIGHT edge, then tap Set end."
+            }
+        }
         if steps.hasStart {
             return current == .height
                 ? "Now tilt up and aim at the very top."
@@ -468,7 +506,7 @@ struct ARMeasureView: View {
                     .frame(height: 90)
                     .frame(maxWidth: .infinity)
                     .accessibilityHidden(true)
-                ForEach(MeasureDimension.allCases) { dimension in
+                ForEach(steps.order) { dimension in
                     HStack {
                         Circle().fill(dimension.color).frame(width: 12, height: 12)
                         Text(dimension.name.capitalized).font(Typography.headline)
@@ -484,7 +522,13 @@ struct ARMeasureView: View {
                     }
                     .foregroundStyle(Theme.textPrimary)
                 }
-                if steps.looksSwapped {
+                if flatOnWall {
+                    Text("Depth isn't measured for flat art. It's saved as \(Length.formatFurniture(steps.value(.depth) ?? 1, system: unit)) so it sits flat on the wall.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if steps.looksSwapped && !flatOnWall {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("The width is smaller than the depth. Did you swap them?")
                             .font(Typography.subheadline)
@@ -588,6 +632,12 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
 
     @ObservationIgnored weak var view: ARSCNView?
     @ObservationIgnored private var start: simd_float3?
+    /// Measuring flat art on a wall: points land on walls, and both sizes
+    /// are measured along the wall.
+    @ObservationIgnored var onWall = false
+    /// Which way the wall faces, from where the start point landed.
+    @ObservationIgnored private var wallNormal: simd_float3?
+    @ObservationIgnored private var lastWallNormal: simd_float3?
     /// 0 width, 1 depth, 2 height: picks the guide plane for the end point.
     @ObservationIgnored private var step = 0
     @ObservationIgnored private var markers: [SCNNode] = []
@@ -638,6 +688,7 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     private func surfacePoint() -> simd_float3? {
         guard let view else { return nil }
         let center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        if onWall { return wallPoint(view: view, center: center) }
         // Every measurement starts on the floor (or a tabletop), so only
         // flat, level surfaces count. Walls are left out on purpose: aiming
         // at a small item used to land the point on the wall behind it.
@@ -656,6 +707,29 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         if let ray = aimingRay(), let points = view.session.currentFrame?.rawFeaturePoints?.points,
            let point = ARMeasure.nearestFeaturePoint(points, origin: ray.origin, direction: ray.direction),
            ray.origin.y - point.y > 0.4 {
+            return point
+        }
+        return nil
+    }
+
+    /// For flat art: a point on a wall (a found wall, or ARKit's guess at
+    /// one), remembering which way the wall faces. Art is flat against the
+    /// wall, so a point on the art is a point on the wall.
+    private func wallPoint(view: ARSCNView, center: CGPoint) -> simd_float3? {
+        let tries: [ARRaycastQuery.Target] = [.existingPlaneInfinite, .existingPlaneGeometry, .estimatedPlane]
+        for target in tries {
+            if let query = view.raycastQuery(from: center, allowing: target, alignment: .vertical),
+               let hit = view.session.raycast(query).first {
+                // A plane's facing direction is its y axis.
+                let normal = simd_make_float3(hit.worldTransform.columns.1)
+                lastWallNormal = simd_length(normal) > 0 ? simd_normalize(normal) : nil
+                return simd_make_float3(hit.worldTransform.columns.3)
+            }
+        }
+        // A tracked speck on the art itself (posters are often textured).
+        if let ray = aimingRay(), let points = view.session.currentFrame?.rawFeaturePoints?.points,
+           let point = ARMeasure.nearestFeaturePoint(points, origin: ray.origin, direction: ray.direction) {
+            lastWallNormal = nil
             return point
         }
         return nil
@@ -680,6 +754,18 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     /// available once the start is set, so it never flickers.
     private func endCandidate() -> simd_float3? {
         guard let start, let ray = aimingRay() else { return nil }
+        if onWall {
+            // Both ends of the art lie on the wall: where the aim meets it.
+            // With no wall found, a standing plane facing the phone.
+            var normal = wallNormal ?? {
+                var toCamera = ray.origin - start
+                toCamera.y = 0
+                return simd_length(toCamera) > 1e-3 ? simd_normalize(toCamera) : simd_float3(0, 0, 1)
+            }()
+            normal.y = 0
+            normal = simd_length(normal) > 1e-3 ? simd_normalize(normal) : simd_float3(0, 0, 1)
+            return ARMeasure.intersect(origin: ray.origin, direction: ray.direction, planePoint: start, normal: normal)
+        }
         if step == 2 {
             return ARMeasure.pointOnVerticalLine(base: start, origin: ray.origin, direction: ray.direction)
         }
@@ -701,6 +787,7 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         recent.removeAll()
         self.step = step
         start = point
+        wallNormal = onWall ? lastWallNormal : nil
         addMarker(at: point, color: color)
         surfaceUnderDot = true
         return true
@@ -715,7 +802,7 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         let distance = ARMeasure.distanceCm(start, end)
         guard distance >= 1 else { return nil }
         lineEnds[step] = (start, end)
-        if step == MeasureDimension.height.rawValue {
+        if step == MeasureDimension.height.rawValue, !onWall {
             topY = end.y
             heightBase = start
         }
@@ -812,7 +899,7 @@ final class ARMeasureModel: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     private func updateGuide(top: simd_float3?) {
         guideNodes.forEach { $0.removeFromParentNode() }
         guideNodes.removeAll()
-        guard step == 2, let start, let root = view?.scene.rootNode else { return }
+        guard step == 2, !onWall, let start, let root = view?.scene.rootNode else { return }
         let pole = SCNCylinder(radius: 0.002, height: 2.5)
         pole.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.6)
         let line = SCNNode(geometry: pole)

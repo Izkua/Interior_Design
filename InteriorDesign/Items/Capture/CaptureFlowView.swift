@@ -27,6 +27,9 @@ struct CaptureFlowView: View {
     @State private var cameraState = CameraAccess.state
     @State private var showCamera = false
     @State private var showAR = false
+    /// Wall art: asking whether it's flat, and the answer.
+    @State private var askFlat = false
+    @State private var measureFlat = false
     @State private var showLiDARScan = false
     @State private var photoSelection: PhotosPickerItem?
 
@@ -80,7 +83,7 @@ struct CaptureFlowView: View {
             }, onTypeInstead: {
                 method = .typical
                 path.append(.confirm)
-            }, onSurface: draft.type.category == .smallDecor)
+            }, onSurface: draft.type.category == .smallDecor, flatOnWall: measureFlat)
         }
         // LiDAR phones: scan the piece in 3D. The model is true to size,
         // so it measures the piece and becomes its 3D model too.
@@ -194,6 +197,23 @@ struct CaptureFlowView: View {
     // MARK: 2. How to size it
 
     private var sizeChoice: some View {
+        sizeOptions
+            .confirmationDialog("Is this flat art on a wall?", isPresented: $askFlat, titleVisibility: .visible) {
+                Button("Yes, it's flat (skip depth)") {
+                    measureFlat = true
+                    showAR = true
+                }
+                Button("No, measure all three sizes") {
+                    measureFlat = false
+                    showAR = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Posters, prints and canvases hang flat, so you only measure width and height on the wall.")
+            }
+    }
+
+    private var sizeOptions: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
                 if let image {
@@ -211,7 +231,13 @@ struct CaptureFlowView: View {
                 SectionHeader(title: "How should we size it?")
                 if ARMeasure.isAvailable {
                     option("Measure with the camera", "Point at each end in AR. Most accurate.", "ruler") {
-                        showAR = true
+                        // Wall art: ask if it's flat, so depth can be skipped.
+                        if draft.type.category == .wallDecor, draft.type != .wallShelf {
+                            askFlat = true
+                        } else {
+                            measureFlat = false
+                            showAR = true
+                        }
                     }
                 }
                 option("Use something in the photo", "Tap a wallet-size card, paper, or door in the photo, then the furniture.", "creditcard") {
