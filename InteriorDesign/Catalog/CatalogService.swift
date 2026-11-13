@@ -81,6 +81,10 @@ struct BackendCatalogService: CatalogService {
         if let local = ProductNormalizer.itemType(nil, name: p.name), local.category != .furniture {
             p.type = local
         }
+        // Lamps: read "warm white" or "2700K" from the name.
+        if p.lightWarmth == nil, LightWarmth.isLight(p.type) {
+            p.lightWarmth = LightWarmth.parse(p.name)
+        }
         return p
     }
 }

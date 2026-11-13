@@ -254,6 +254,11 @@ struct ItemEditorSheet: View {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
                 RoomChooser(rooms: $draft.rooms, anyRoom: $draft.anyRoom, allRooms: rooms)
 
+                if LightWarmth.isLight(draft.type) {
+                    LightWarmthPicker(title: "Light color", selection: $draft.lightWarmth,
+                                      help: "Check the bulb or its box: 2700 K is warm, 5000 K is cool. Used to suggest lamps that match.")
+                }
+
                 Toggle(isOn: $draft.isFixed) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Fixed in place")

@@ -112,6 +112,12 @@ struct ProductDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
 
+                if let light = product.lightWarmth {
+                    Label("\(light.title) light: \(light.detail.prefix(1).lowercased() + light.detail.dropFirst())", systemImage: "lightbulb")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
                 if product.url != nil {
                     PrimaryButton(title: isOpening ? "Opening…" : "View at \(product.retailer)", systemImage: "arrow.up.right.square") {
                         Task { await openRetailer() }

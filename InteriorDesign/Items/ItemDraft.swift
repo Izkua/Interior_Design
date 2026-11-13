@@ -23,6 +23,8 @@ struct ItemDraft: Equatable {
     var rooms: [Room] = []
     /// "Not sure yet": a candidate for every room.
     var anyRoom = false
+    /// For lamps: how warm or cool the bulb is. Nil means "not sure".
+    var lightWarmth: LightWarmth?
 
     /// A new item of `type`, starting at that type's usual size.
     init(type: ItemType = .sofa, room: Room? = nil) {
@@ -50,6 +52,7 @@ struct ItemDraft: Equatable {
         cutoutSource = item.cutoutSource
         rooms = item.assignedRooms
         anyRoom = item.anyRoom
+        lightWarmth = item.lightWarmth
     }
 
     /// Switches the type. The size and name follow the new type only if
@@ -99,6 +102,8 @@ struct ItemDraft: Equatable {
         item.cutoutData = cutoutData
         item.cutoutSource = cutoutSource
         item.setRooms(rooms, anyRoom: anyRoom)
+        // Only lamps give off light.
+        item.lightWarmth = LightWarmth.isLight(type) ? lightWarmth : nil
         item.isEstimated = false
     }
 }

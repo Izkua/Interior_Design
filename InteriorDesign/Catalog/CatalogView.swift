@@ -17,6 +17,8 @@ struct CatalogView: View {
     @AppStorage(SettingsKey.matchRoomColors) private var matchRoomColors = true
     /// The room's colors and mood, worked out from its items' photos.
     @State private var vibe: RoomVibe?
+    /// The room's main light and its lamps' glow.
+    @State private var roomLight: RoomLight?
     /// The Recommended section is closed until tapped.
     @State private var showRecommended = false
 
@@ -50,7 +52,7 @@ struct CatalogView: View {
     private var preferences: ShoppingPreferences {
         func set(_ csv: String) -> Set<String> { Set(csv.split(separator: ",").map(String.init)) }
         return ShoppingPreferences(styles: set(stylesCSV), materials: set(materialsCSV), minRating: minimumRating,
-                                   vibe: matchRoomColors ? vibe : nil)
+                                   vibe: matchRoomColors ? vibe : nil, light: roomLight)
     }
 
     private var snapshot: CatalogStore.RoomSnapshot? {
@@ -73,6 +75,10 @@ struct CatalogView: View {
 
                     if let vibe {
                         vibeCard(vibe)
+                    }
+
+                    if let room {
+                        lightCard(room)
                     }
 
                     if !store.gaps.isEmpty {
@@ -161,6 +167,7 @@ struct CatalogView: View {
             }
             .task(id: room?.decorSignature ?? "") {
                 vibe = room?.vibe()
+                roomLight = room?.light
                 try? context.save()
             }
         }
@@ -168,11 +175,17 @@ struct CatalogView: View {
 
     /// Re-search when any of these change.
     private var searchKey: String {
-        "\(query.hashValue)|\(budget.total ?? -1)|\(budget.committed)|\(room?.decorSignature ?? "")|\(stylesCSV)|\(materialsCSV)|\(matchRoomColors)|\(vibe?.title ?? "")"
+        "\(query.hashValue)|\(budget.total ?? -1)|\(budget.committed)|\(room?.decorSignature ?? "")|\(stylesCSV)|\(materialsCSV)|\(matchRoomColors)|\(vibe?.title ?? "")|\(lightKey)"
+    }
+
+    /// The room's light, so lamps re-rank when it changes.
+    private var lightKey: String {
+        guard let light = roomLight else { return "" }
+        return "\(light.mainLight?.rawValue ?? "")-\(light.lamps.map(\.rawValue).joined())"
     }
 
     private var gapsKey: String {
-        "\(room?.decorSignature ?? "")|\(budget.total ?? -1)|\(budget.committed)|\(matchRoomColors)|\(vibe?.title ?? "")"
+        "\(room?.decorSignature ?? "")|\(budget.total ?? -1)|\(budget.committed)|\(matchRoomColors)|\(vibe?.title ?? "")|\(lightKey)"
     }
 
     // MARK: Budget
@@ -256,6 +269,34 @@ struct CatalogView: View {
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: Room light
+
+    /// How warm the room's main light is, so suggested lamps match it.
+    private func lightCard(_ room: Room) -> some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: Theme.Space.sm) {
+                LightWarmthPicker(
+                    title: "\(room.name)'s main light",
+                    selection: Binding(get: { room.mainLightWarmth },
+                                       set: { room.mainLightWarmth = $0; try? context.save(); roomLight = room.light }),
+                    help: "Is the ceiling light yellowy (warm) or bright white (cool)? Lamps that match rank higher."
+                )
+                if let target = roomLight?.target, room.mainLightWarmth == nil {
+                    Text("Your lamps are mostly \(target.title.lowercased()), so lamps like that come first.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                if roomLight?.isMixed == true {
+                    Label("This room mixes warm and cool light, which can look patchy. Bulbs of one warmth usually look calmer.",
+                          systemImage: "lightbulb")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

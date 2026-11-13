@@ -48,3 +48,17 @@ extension Room {
         return RoomVibe.from(colors)
     }
 }
+
+extension Room {
+    /// How warm or cool the room's main light is. Nil until set.
+    var mainLightWarmth: LightWarmth? {
+        get { mainLightWarmthRaw.flatMap(LightWarmth.init(rawValue:)) }
+        set { mainLightWarmthRaw = newValue?.rawValue; updatedAt = Date() }
+    }
+
+    /// The room's light: its main light and its lamps' glow.
+    var light: RoomLight {
+        RoomLight(mainLight: mainLightWarmth,
+                  lamps: allItems.filter { LightWarmth.isLight($0.type) }.compactMap(\.lightWarmth))
+    }
+}

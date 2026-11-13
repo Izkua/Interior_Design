@@ -50,6 +50,12 @@ struct DecorPiece: Sendable, Identifiable {
     var depth: Double
     var height: Double
     var color: RGB?
+    /// For lamps: how warm or cool the light is, if known.
+    var light: LightWarmth? = nil
+
+    /// The color family it brings to a group. A lamp's glow matters more
+    /// than its shade's color: a warm-white lamp warms what's around it.
+    var tone: RGB.Tone? { light?.tone ?? color?.tone }
 }
 
 /// A piece of furniture with a top that decor can stand on.
@@ -128,8 +134,9 @@ enum SmallDecorPlanner {
                  detail: "Shares the pieces across your surfaces so none looks cluttered.",
                  choose: { _, options, load in options.min { (load[$0.id] ?? 0) < (load[$1.id] ?? 0) } }),
         ]
-        // Color groups need at least two pieces with known colors.
-        let toned = pieces.filter { $0.color != nil }
+        // Color groups need at least two pieces with known colors (or a
+        // lamp's known glow).
+        let toned = pieces.filter { $0.tone != nil }
         if toned.count >= 2 {
             results.append(colorGroups(pieces, surfaces))
         }
@@ -184,7 +191,8 @@ enum SmallDecorPlanner {
     }
 
     /// Groups pieces by color family (warm, cool, neutral) and gives each
-    /// family its own surface, like a small styled corner.
+    /// family its own surface, like a small styled corner. A lamp joins the
+    /// family of its light, so a warm lamp lights up the warm pieces.
     static func colorGroups(_ pieces: [DecorPiece], _ surfaces: [DecorSurface]) -> SmallDecorSuggestion {
         var assigned: [UUID: [DecorPiece]] = [:]
         var floor: [DecorPiece] = []
@@ -201,7 +209,7 @@ enum SmallDecorPlanner {
                 assigned[options[0].id, default: []].append(piece)
                 continue
             }
-            let tone = piece.color?.tone ?? .neutral
+            let tone = piece.tone ?? .neutral
             let pick: DecorSurface
             if let hostID = familyHost[tone], let same = options.first(where: { $0.id == hostID }) {
                 pick = same
@@ -215,7 +223,7 @@ enum SmallDecorPlanner {
         }
         return SmallDecorSuggestion(
             label: "Color groups",
-            detail: "Puts pieces of the same color family together, so each surface has its own little matching group.",
+            detail: "Puts pieces of the same color family together, so each surface has its own little matching group. Lamps join the group that suits their light.",
             spots: spots(assigned, surfaces: surfaces, floor: floor), leftOut: leftOut
         )
     }

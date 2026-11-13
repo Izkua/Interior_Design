@@ -101,7 +101,8 @@ extension Room {
         items(in: .smallDecor).map { item in
             item.refreshColor()
             return DecorPiece(id: item.uuid, type: item.type, name: item.name, width: item.widthCm,
-                              depth: item.depthCm, height: item.heightCm, color: item.mainColor)
+                              depth: item.depthCm, height: item.heightCm, color: item.mainColor,
+                              light: LightWarmth.isLight(item.type) ? item.lightWarmth : nil)
         }
     }
 
@@ -119,8 +120,8 @@ extension Room {
     /// Changes whenever anything the decor planners look at changes.
     var decorSignature: String {
         let walls = wallDecorForPlanning.map { "\($0.id):\(Int($0.widthCm))x\(Int($0.heightCm)):\($0.colors.joined())" }.joined(separator: ";")
-        let small = items(in: .smallDecor).map { "\($0.uuid):\(Int($0.widthCm))x\(Int($0.depthCm))x\(Int($0.heightCm))" }.joined(separator: ";")
-        return [layoutSignature, walls, small, "\(Int(ceilingHeightCm))"].joined(separator: "|")
+        let small = items(in: .smallDecor).map { "\($0.uuid):\(Int($0.widthCm))x\(Int($0.depthCm))x\(Int($0.heightCm)):\($0.lightWarmthRaw ?? "")" }.joined(separator: ";")
+        return [layoutSignature, walls, small, "\(Int(ceilingHeightCm))", mainLightWarmthRaw ?? ""].joined(separator: "|")
     }
 }
 

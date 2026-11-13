@@ -18,6 +18,9 @@ struct CatalogProduct: Codable, Hashable, Identifiable, Sendable {
     var materials: [String] = []
     var styles: [String] = []
     var colors: [String] = []
+    /// For lamps: how warm or cool the light is, when the listing says
+    /// (a Kelvin number or words like "warm white").
+    var lightWarmth: LightWarmth?
     var rating: Double?
     var reviewCount: Int?
     var imageURL: URL?
@@ -87,6 +90,8 @@ struct RawProduct: Codable, Sendable {
     var materials: [String]?
     var styles: [String]?
     var colors: [String]?
+    /// Bulb color temperature in Kelvin, if the source lists it.
+    var kelvin: Int?
     var rating: Double?
     var reviewCount: Int?
     var imageURL: String?
@@ -106,6 +111,7 @@ enum ProductNormalizer {
             let cm = value * factor
             return cm <= 1_000 ? cm : nil
         }
+        let type = itemType(raw.type, name: raw.name)
         return CatalogProduct(
             id: raw.id,
             name: raw.name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -114,10 +120,11 @@ enum ProductNormalizer {
             widthCm: clean(raw.size?.width),
             depthCm: clean(raw.size?.depth),
             heightCm: clean(raw.size?.height),
-            type: itemType(raw.type, name: raw.name),
+            type: type,
             materials: raw.materials ?? [],
             styles: raw.styles ?? [],
             colors: raw.colors ?? [],
+            lightWarmth: lightWarmth(raw, type: type),
             rating: raw.rating.map { min(max($0, 0), 5) },
             reviewCount: raw.reviewCount,
             imageURL: raw.imageURL.flatMap(URL.init(string:)),
@@ -125,6 +132,14 @@ enum ProductNormalizer {
             url: raw.url.flatMap(URL.init(string:)),
             isSample: raw.isSample ?? false
         )
+    }
+
+    /// A lamp's light warmth: the listed Kelvin, else words in its name.
+    /// Nil for anything that isn't a lamp.
+    static func lightWarmth(_ raw: RawProduct, type: ItemType?) -> LightWarmth? {
+        guard LightWarmth.isLight(type) else { return nil }
+        if let k = raw.kelvin, k > 0 { return LightWarmth(kelvin: k) }
+        return LightWarmth.parse(raw.name)
     }
 
     static func centimeters(per unit: String?) -> Double {

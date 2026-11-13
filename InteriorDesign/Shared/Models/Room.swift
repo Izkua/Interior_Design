@@ -153,6 +153,9 @@ final class Room {
     var surfaceDecor: [SurfaceSpot] = []
     /// Floor to ceiling, in cm, for the wall front views.
     var ceilingHeightCm: Double = WallDecorGeometry.defaultCeilingCm
+    /// How warm or cool the room's main (ceiling) light is
+    /// (`LightWarmth`). Nil until the person sets it.
+    var mainLightWarmthRaw: String? = nil
     var createdAt: Date
     var updatedAt: Date
 

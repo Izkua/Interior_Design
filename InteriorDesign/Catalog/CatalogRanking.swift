@@ -28,6 +28,15 @@ struct ShoppingPreferences: Sendable, Equatable {
     var minRating: Double = 0
     /// The room's colors and mood. When set, products that suit it rank higher.
     var vibe: RoomVibe?
+    /// The room's light: its main light and the lamps it already has.
+    /// When known, lamps with a matching glow rank higher.
+    var light: RoomLight?
+
+    /// The glow new lamps should have: the room's light if known, else
+    /// the one that suits the room's color mood.
+    var lampWarmth: LightWarmth? {
+        light?.target ?? vibe.map { LightWarmth.suited(to: $0.tone) }
+    }
 }
 
 enum CatalogRanking {
@@ -88,6 +97,16 @@ enum CatalogRanking {
             // Colors that suit the room count about as much as a liked style.
             score += 2 * vibe.match(colors: p.colors)
             if matches(p.styles, vibe.suitedStyles) { score += 0.5 }
+        }
+        if LightWarmth.isLight(p.type), let wanted = preferences.lampWarmth {
+            // A lamp whose glow matches the room counts about as much as a
+            // liked style; warm in a cool room (or the reverse) counts against.
+            score += 3 * LightWarmth.match(p.lightWarmth, room: wanted) - 1.5
+        }
+        if let light = preferences.light?.target, light != .neutral, !p.colors.isEmpty {
+            // Warm light makes warm colors glow and dulls cool ones; cool
+            // light the other way round. A small nudge.
+            if p.colors.contains(where: { RoomVibe.tone(ofName: $0.capitalized) == light.tone }) { score += 0.3 }
         }
         if let rating = p.rating {
             // A 4.5 with 500 reviews beats a 5.0 with 2.

@@ -156,6 +156,9 @@ final class Item {
     /// The piece's main color as "#RRGGBB|<photo size>", worked out on the
     /// phone from its photo and kept so it isn't redone every time.
     var colorKey: String? = nil
+    /// For lamps: how warm or cool the bulb's light is (`LightWarmth`).
+    /// Nil when unknown or not a lamp.
+    var lightWarmthRaw: String? = nil
     var source: ItemSource
     /// True for things that should not move, like a built-in wardrobe.
     var isFixed: Bool
@@ -197,6 +200,14 @@ final class Item {
         self.notes = notes
         self.photoData = photoData
         self.createdAt = Date()
+    }
+}
+
+extension Item {
+    /// For lamps: how warm or cool its light is. Nil when unknown.
+    var lightWarmth: LightWarmth? {
+        get { lightWarmthRaw.flatMap(LightWarmth.init(rawValue:)) }
+        set { lightWarmthRaw = newValue?.rawValue }
     }
 }
 
