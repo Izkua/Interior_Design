@@ -42,6 +42,10 @@ struct RoomFurnitureView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                         }
                         statusNotes(problemIDs: problemIDs)
+                        // An AI picture of the room as it's arranged now.
+                        if !placed.isEmpty {
+                            VisualizeButton(room: room, placements: placed.map(\.placement), items: items, style: .tinted)
+                        }
                     }
                     .padding(.horizontal, Theme.Space.md)
 
