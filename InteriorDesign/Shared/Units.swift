@@ -88,19 +88,19 @@ enum Length {
         scale == .room ? format(cm, system: system) : formatFurniture(cm, system: system)
     }
 
-    /// Furniture size: "210 × 90 × 85 cm" or "83 × 35 × 33 in".
-    static func formatDimensions(width: Double, depth: Double, height: Double, system: UnitSystem) -> String {
+    /// A size as height × width × depth: "85 × 210 × 90 cm" or
+    /// "33 × 83 × 35 in". With no depth (a poster listed "24 × 36 in"),
+    /// just height × width.
+    static func formatDimensions(height: Double, width: Double, depth: Double?, system: UnitSystem) -> String {
         // Thin things (a rug is about 1 cm thick) would round to "0";
         // show "<1" instead so it doesn't look like a missing size.
         func whole(_ value: Double) -> String {
             value > 0 && value < 0.5 ? "<1" : "\(Int(value.rounded()))"
         }
-        switch system {
-        case .metric:
-            return "\(whole(width)) × \(whole(depth)) × \(whole(height)) cm"
-        case .imperial:
-            return "\(whole(width / cmPerInch)) × \(whole(depth / cmPerInch)) × \(whole(height / cmPerInch)) in"
-        }
+        let perUnit = system == .metric ? 1 : cmPerInch
+        let sides = [height, width] + (depth.map { [$0] } ?? [])
+        let text = sides.map { whole($0 / perUnit) }.joined(separator: " × ")
+        return "\(text) \(system == .metric ? "cm" : "in")"
     }
 
     /// Floor area: "12.5 m²" or "135 sq ft".

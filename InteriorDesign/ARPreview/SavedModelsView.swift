@@ -125,7 +125,7 @@ struct SavedModelsView: View {
                     .font(Typography.subheadline)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
-                Text(Length.formatDimensions(width: item.widthCm, depth: item.depthCm, height: item.heightCm, system: unit))
+                Text(Length.formatDimensions(height: item.heightCm, width: item.widthCm, depth: item.depthCm, system: unit))
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -147,8 +147,8 @@ struct SavedModelsView: View {
                     .font(Typography.subheadline)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
-                if let w = product.widthCm, let d = product.depthCm, let h = product.heightCm {
-                    Text(Length.formatDimensions(width: w, depth: d, height: h, system: unit))
+                if let w = product.widthCm, let h = product.heightCm {
+                    Text(Length.formatDimensions(height: h, width: w, depth: product.depthCm, system: unit))
                         .font(Typography.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }

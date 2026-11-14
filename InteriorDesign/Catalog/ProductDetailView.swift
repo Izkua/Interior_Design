@@ -276,8 +276,8 @@ struct ProductDetailView: View {
                         .accessibilityLabel("Room: \(current.name). Choose another room to check and preview in.")
                     }
                 }
-                if let w = product.widthCm, let d = product.depthCm, let h = product.heightCm, product.hasDimensions {
-                    Text("\(Length.formatDimensions(width: w, depth: d, height: h, system: unit)) (W × D × H)")
+                if let w = product.widthCm, let h = product.heightCm, product.hasDimensions {
+                    Text("\(Length.formatDimensions(height: h, width: w, depth: product.depthCm, system: unit)) (\(product.depthCm == nil ? "H × W" : "H × W × D"))")
                         .font(Typography.body)
                         .foregroundStyle(Theme.textPrimary)
                 }

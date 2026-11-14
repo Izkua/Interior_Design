@@ -185,7 +185,7 @@ struct ARPlaceView: View {
                 Text(piece.name)
                     .font(Typography.headline)
                     .lineLimit(1)
-                Text(Length.formatDimensions(width: piece.widthCm, depth: piece.depthCm, height: piece.heightCm, system: unit) + " (W × D × H)")
+                Text(Length.formatDimensions(height: piece.heightCm, width: piece.widthCm, depth: piece.depthCm, system: unit) + " (H × W × D)")
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textSecondary)
             }

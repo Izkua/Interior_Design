@@ -1,6 +1,6 @@
 // Run with: deno test supabase/functions/_shared/
 import { assertEquals } from "jsr:@std/assert@1";
-import { channel3Request, colorName, itemType, normalize, toCm, type C3Product } from "./products.ts";
+import { channel3Request, colorName, itemType, normalize, sizes, toCm, type C3Product } from "./products.ts";
 
 Deno.test("converts lengths to centimeters", () => {
   assertEquals(toCm({ number: 34, unit: "in" }), 86.4);
@@ -75,4 +75,39 @@ Deno.test("builds the Channel3 request", () => {
   assertEquals(r.limit, 30);
   assertEquals(r.filters, { price: { max_price: 400 } });
   assertEquals(r.config, { length_unit: "cm" });
+});
+
+const inch = (n: number) => ({ number: n, unit: "in" });
+
+Deno.test("a two-number poster is height then width, with no depth", () => {
+  // "24 x 36 in": Channel3 files the numbers as length and width.
+  assertEquals(sizes({ length: inch(24), width: inch(36) }, "poster"), { widthCm: 91.4, depthCm: null, heightCm: 61 });
+  // Width and height missing the other way round still read height first.
+  assertEquals(sizes({ length: inch(24), height: inch(36) }, "framedArt"), { widthCm: 91.4, depthCm: null, heightCm: 61 });
+});
+
+Deno.test("labelled width and height on wall decor are kept", () => {
+  assertEquals(sizes({ width: inch(24), height: inch(36) }, "poster"), { widthCm: 61, depthCm: null, heightCm: 91.4 });
+});
+
+Deno.test("three numbers on flat decor: the thin one is depth", () => {
+  // "24 x 36 x 1": the 1 is the thickness, not the height.
+  assertEquals(sizes({ length: inch(24), width: inch(36), height: inch(1) }, "canvasArt"), { widthCm: 91.4, depthCm: 2.5, heightCm: 61 });
+  // Already labelled sensibly: unchanged.
+  assertEquals(sizes({ length: inch(1), width: inch(24), height: inch(36) }, "poster"), { widthCm: 61, depthCm: 2.5, heightCm: 91.4 });
+});
+
+Deno.test("furniture sizes keep their labels", () => {
+  const cm = (n: number) => ({ number: n, unit: "cm" });
+  assertEquals(sizes({ length: cm(60), width: cm(110), height: cm(42) }, "table"), { widthCm: 110, depthCm: 60, heightCm: 42 });
+  // A two-number rug is not read as height × width.
+  assertEquals(sizes({ length: cm(150), width: cm(240) }, "rug"), { widthCm: 240, depthCm: 150, heightCm: null });
+  assertEquals(sizes(null, "poster"), { widthCm: null, depthCm: null, heightCm: null });
+});
+
+Deno.test("normalize uses the poster reading", () => {
+  const poster: C3Product = { ...sample, title: "Botanical Poster", category: null,
+    offers: [{ url: "u", domain: "d", price: { price: 20, currency: "USD" }, dimensions: { length: inch(24), width: inch(36) } }] };
+  const p = normalize(poster)!;
+  assertEquals([p.heightCm, p.widthCm, p.depthCm], [61, 91.4, null]);
 });

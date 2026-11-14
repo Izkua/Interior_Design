@@ -47,10 +47,10 @@ struct ProductCard: View {
     }
 
     private var sizeText: String {
-        guard product.hasDimensions, let w = product.widthCm, let d = product.depthCm, let h = product.heightCm else {
+        guard product.hasDimensions, let w = product.widthCm, let h = product.heightCm else {
             return "Size not listed"
         }
-        return Length.formatDimensions(width: w, depth: d, height: h, system: unit)
+        return Length.formatDimensions(height: h, width: w, depth: product.depthCm, system: unit)
     }
 }
 

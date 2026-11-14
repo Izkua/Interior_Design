@@ -30,9 +30,9 @@ struct ItemCard: View {
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Text(Length.formatDimensions(
+                        height: item.heightCm,
                         width: item.widthCm,
                         depth: item.depthCm,
-                        height: item.heightCm,
                         system: unit
                     ))
                     .font(Typography.caption)

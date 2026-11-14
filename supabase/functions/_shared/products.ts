@@ -77,6 +77,58 @@ export function toCm(length?: C3Length | null): number | null {
   return cm <= 1000 ? Math.round(cm * 10) / 10 : null;
 }
 
+/**
+ * Wall decor that hangs flat, where a two-number size means height × width
+ * and a listing's thin side is its depth. (Not wall shelves: "24 x 6 in" on
+ * a shelf is width × depth.)
+ */
+const FLAT_WALL_DECOR = new Set(["poster", "framedArt", "canvasArt", "mirror", "wallClock"]);
+
+type Sizes = { widthCm: number | null; depthCm: number | null; heightCm: number | null };
+
+/**
+ * A product's width, depth, and height from Channel3's labelled sizes.
+ *
+ * Furniture: width is side to side, depth is Channel3's "length", height is
+ * height, as labelled.
+ *
+ * Flat wall decor is usually listed with just two numbers ("24 x 36 in", height
+ * then width) and Channel3 files them in its first two slots, length and
+ * width. Read that way, a poster came out 36 wide, 24 deep, and with no
+ * height (or a tiny one), so it was drawn as a sliver. For flat wall decor:
+ * - two numbers: the first listed (length, else width) is height, the
+ *   other is width, and depth stays missing (never filled with 1).
+ *   If the two are already labelled width and height, those labels win.
+ * - three numbers on flat decor: the thinnest is the depth (frame or canvas
+ *   thickness); of the other two, a labelled height stays the height,
+ *   otherwise the first listed is the height.
+ */
+export function sizes(d: Partial<Record<"length" | "width" | "height", C3Length | null>> | null, type: string | null): Sizes {
+  const length = toCm(d?.length);
+  const width = toCm(d?.width);
+  const height = toCm(d?.height);
+  const asLabelled = { widthCm: width, depthCm: length, heightCm: height };
+  if (!type || !FLAT_WALL_DECOR.has(type)) return asLabelled;
+
+  const present = [length, width, height].filter((v): v is number => v !== null);
+  if (present.length === 2) {
+    if (length === null) return { widthCm: width, depthCm: null, heightCm: height };
+    // Length is the first number listed, so it is the height.
+    return { widthCm: width ?? height, depthCm: null, heightCm: length };
+  }
+  if (present.length === 3) {
+    const slots: ["length" | "width" | "height", number][] = [["length", length!], ["width", width!], ["height", height!]];
+    const thin = slots.reduce((a, b) => (b[1] < a[1] ? b : a));
+    const rest = slots.filter((s) => s !== thin);
+    // Already sensible (height and width are the big two): keep the labels.
+    if (thin[0] === "length") return asLabelled;
+    const tall = rest.find((s) => s[0] === "height") ?? rest[0];
+    const wide = rest.find((s) => s !== tall)!;
+    return { widthCm: wide[1], depthCm: thin[1], heightCm: tall[1] };
+  }
+  return asLabelled;
+}
+
 /** Our item types, matched from Channel3's category or the product title. */
 const TYPE_WORDS: [string, string[]][] = [
   // Decor first, so "table lamp" isn't read as a table.
@@ -138,19 +190,17 @@ export function normalize(p: C3Product): AppProduct | null {
   const offer = offers.sort((a, b) => a.price.price - b.price.price)[0] ?? p.offers?.[0];
   if (!offer) return null;
 
-  // Furniture: width is side to side, depth is Channel3's "length".
   const d = offer.dimensions ?? p.offers?.find((o) => o.dimensions)?.dimensions ?? null;
   const image = p.images?.find((i) => i.is_main_image) ?? p.images?.[0];
+  const type = itemType(p.category?.title ?? p.category?.slug, p.title);
 
   return {
     id: p.id,
     name: p.title.trim(),
     price: offer.price.price,
     currency: offer.price.currency ?? "USD",
-    widthCm: toCm(d?.width),
-    depthCm: toCm(d?.length),
-    heightCm: toCm(d?.height),
-    type: itemType(p.category?.title ?? p.category?.slug, p.title),
+    ...sizes(d, type),
+    type,
     materials: [...new Set([...(p.materials ?? []), ...(p.structured_attributes?.material ?? [])])],
     styles: [],
     // Named colors if Channel3 gives them; otherwise the closest name to

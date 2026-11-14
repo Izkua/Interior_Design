@@ -51,7 +51,7 @@ extension ARPiece {
     /// shown true to size). Colors start from the product's color names;
     /// the photo is checked once it downloads.
     init?(product: CatalogProduct) {
-        guard product.hasDimensions, let w = product.widthCm, let d = product.depthCm, let h = product.heightCm else { return nil }
+        guard product.hasDimensions, let w = product.widthCm, let d = product.depthOrThinCm, let h = product.heightCm else { return nil }
         let type = product.type ?? .other
         self.init(
             name: product.name, type: type, widthCm: w, depthCm: d, heightCm: h,

@@ -174,6 +174,29 @@ final class CatalogTests: XCTestCase {
         XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["b"])
     }
 
+    // MARK: Two-number sizes
+
+    /// A poster listed "24 x 36 in": height and width, no depth.
+    private var poster: CatalogProduct {
+        CatalogProduct(id: "poster", name: "Botanical poster", price: 20,
+                       widthCm: 36 * 2.54, depthCm: nil, heightCm: 24 * 2.54, type: .poster, retailer: "Test")
+    }
+
+    func testPosterWithoutDepthStillHasASize() {
+        XCTAssertTrue(poster.hasDimensions)
+        XCTAssertNil(poster.depthCm, "A missing depth stays missing, never 1.")
+        XCTAssertEqual(poster.depthOrThinCm, CatalogProduct.flatDecorDepthCm)
+        XCTAssertEqual(poster.asLayoutItem()?.width ?? 0, 91.44, accuracy: 0.01)
+    }
+
+    func testFurnitureWithoutDepthIsStillUnknown() {
+        let table = product("t", 100, type: .table, size: nil)
+        var twoSides = table
+        twoSides.widthCm = 120; twoSides.heightCm = 75
+        XCTAssertFalse(twoSides.hasDimensions)
+        XCTAssertNil(twoSides.depthOrThinCm)
+    }
+
     // MARK: Ranking
 
     func testRankingPrefersFitThenTaste() {

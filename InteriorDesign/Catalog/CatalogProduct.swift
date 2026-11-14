@@ -36,14 +36,33 @@ struct CatalogProduct: Codable, Hashable, Identifiable, Sendable {
         widthCm: 100, depthCm: 50, heightCm: 80, retailer: "Store"
     )
 
+    /// Posters, prints, canvases, mirrors, and wall clocks: listed with just
+    /// height × width, since they're only a few centimeters deep.
+    var hangsFlat: Bool {
+        guard let type else { return false }
+        return [.poster, .framedArt, .canvasArt, .mirror, .wallClock].contains(type)
+    }
+
+    /// How deep a flat wall piece is taken to be when the listing doesn't say.
+    static let flatDecorDepthCm = 2.5
+
+    /// The depth to use for fit checks and AR: the listed depth, or a thin
+    /// one for flat wall decor. Nil (unknown) for anything else.
+    var depthOrThinCm: Double? {
+        if let depthCm, depthCm > 0 { return depthCm }
+        return hangsFlat ? Self.flatDecorDepthCm : nil
+    }
+
+    /// True when the size is known well enough to check fit: width and
+    /// height, plus depth (which flat wall decor may leave out).
     var hasDimensions: Bool {
-        (widthCm ?? 0) > 0 && (depthCm ?? 0) > 0 && (heightCm ?? 0) > 0
+        (widthCm ?? 0) > 0 && (heightCm ?? 0) > 0 && depthOrThinCm != nil
     }
 
     /// The product as a piece of furniture for the layout engine, or nil
     /// if its size is unknown.
     func asLayoutItem(id itemID: UUID = UUID()) -> LayoutItem? {
-        guard hasDimensions, let w = widthCm, let d = depthCm, let h = heightCm else { return nil }
+        guard hasDimensions, let w = widthCm, let d = depthOrThinCm, let h = heightCm else { return nil }
         return LayoutItem(id: itemID, type: type ?? .other, name: name, width: w, depth: d, height: h)
     }
 }
