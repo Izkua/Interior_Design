@@ -395,7 +395,7 @@ struct CatalogView: View {
 
     private var activeFilters: Bool {
         query.type != nil || query.category != nil || query.minPrice != nil || query.maxPrice != nil || query.minRating > 0
-            || !query.materials.isEmpty || !query.styles.isEmpty || !query.colors.isEmpty
+            || !query.materials.isEmpty || !query.styles.isEmpty || !query.colors.isEmpty || query.onlyWithSizes
     }
 }
 

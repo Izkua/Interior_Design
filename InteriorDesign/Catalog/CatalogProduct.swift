@@ -79,6 +79,9 @@ struct CatalogQuery: Codable, Hashable, Sendable {
     var materials: Set<String> = []
     var styles: Set<String> = []
     var colors: Set<String> = []
+    /// Hide products whose retailer doesn't list a size. Applied on the
+    /// device, so it costs no catalog searches.
+    var onlyWithSizes = false
     var limit = 30
 }
 

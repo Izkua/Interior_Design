@@ -46,6 +46,10 @@ struct CatalogFiltersSheet: View {
                                 ForEach(RatingOption.all, id: \.self) { Text(RatingOption.title($0)).tag($0) }
                             }
                             .pickerStyle(.segmented)
+                            Toggle("Only show items with sizes listed", isOn: $draft.onlyWithSizes)
+                                .font(Typography.subheadline)
+                                .tint(Theme.accent)
+                                .frame(minHeight: Theme.minTap)
                         }
                     }
 

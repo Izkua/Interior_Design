@@ -197,6 +197,17 @@ final class CatalogTests: XCTestCase {
         XCTAssertNil(twoSides.depthOrThinCm)
     }
 
+    // MARK: "Only show items with sizes listed"
+
+    func testOnlyWithSizesFilter() {
+        let items = [product("sized", 100), product("unsized", 100, size: nil), poster]
+        XCTAssertEqual(CatalogRanking.filter(items, query: CatalogQuery(), budget: ShoppingBudget()).map(\.id),
+                       ["sized", "unsized", "poster"], "Off by default.")
+        var query = CatalogQuery()
+        query.onlyWithSizes = true
+        XCTAssertEqual(CatalogRanking.filter(items, query: query, budget: ShoppingBudget()).map(\.id), ["sized", "poster"])
+    }
+
     // MARK: Ranking
 
     func testRankingPrefersFitThenTaste() {

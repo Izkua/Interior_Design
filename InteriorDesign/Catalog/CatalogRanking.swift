@@ -65,6 +65,7 @@ enum CatalogRanking {
             if !query.materials.isEmpty, !p.materials.isEmpty, !matches(p.materials, query.materials) { return false }
             if !query.styles.isEmpty, !p.styles.isEmpty, !matches(p.styles, query.styles) { return false }
             if !query.colors.isEmpty, !p.colors.isEmpty, !matches(p.colors, query.colors) { return false }
+            if query.onlyWithSizes, !p.hasDimensions { return false }
             return true
         }
     }
