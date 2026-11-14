@@ -41,6 +41,8 @@ struct ProductCard: View {
                 FitBadge(fit: fit)
             }
         }
+        // Taps count only inside this card's own rounded box.
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -81,24 +83,33 @@ struct FitBadge: View {
 
 /// The product photo, or its furniture icon while loading or if there is
 /// none. Sample products get a "Sample" tag.
+///
+/// The photo is "scaled to fill", so a wide photo is really wider than the
+/// box and only *looks* cut off: `.clipped()` hides the extra pixels but
+/// they still catch taps. That made a tap on one card open its neighbour.
+/// So the grey box sets the size, the photo sits in an overlay (it can't
+/// stretch the box), and `.contentShape` limits taps to the box.
 struct ProductImage: View {
     let product: CatalogProduct
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Theme.surfaceAlt
-            AsyncImage(url: product.imageURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Image(systemName: product.type?.symbol ?? "cube")
-                    .font(.system(size: 30))
-                    .foregroundStyle(Theme.accent)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Theme.surfaceAlt
+            .overlay {
+                AsyncImage(url: product.imageURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Image(systemName: product.type?.symbol ?? "cube")
+                        .font(.system(size: 30))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
-            if product.isSample {
-                Tag(text: "Sample").padding(6)
+            .overlay(alignment: .topLeading) {
+                if product.isSample {
+                    Tag(text: "Sample").padding(6)
+                }
             }
-        }
-        .clipped()
+            .clipped()
+            .contentShape(Rectangle())
     }
 }
